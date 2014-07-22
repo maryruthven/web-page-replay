@@ -14,25 +14,26 @@
 # limitations under the License.
 
 import BaseHTTPServer
+import daemonserver
 import errno
+import httparchive
 import logging
+import os
+import proxyshaper
+import re
 import socket
 import SocketServer
 import ssl
+import sslproxy
+import subprocess
+import sys
 import time
 import urlparse
-
-import certutils
-import daemonserver
-import httparchive
-import proxyshaper
-import sslproxy
 
 
 class HttpProxyError(Exception):
   """Module catch-all error."""
   pass
-
 
 class HttpProxyServerError(HttpProxyError):
   """Raised for errors like 'Address already in use'."""
@@ -59,9 +60,9 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     self.has_handled_request = False
 
   def finish(self):
-    BaseHTTPServer.BaseHTTPRequestHandler.setup(self)
+    BaseHTTPServer.BaseHTTPRequestHandler.finish(self)
     if not self.has_handled_request:
-      logging.error('Client failed to make request')
+      logging.error('Unable to complete request')
 
   # Make request handler logging match our logging format.
   def log_request(self, code='-', size='-'): pass
@@ -89,14 +90,35 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     query = '?%s' % parsed.query if parsed.query else ''
     fragment = '#%s' % parsed.fragment if parsed.fragment else ''
     full_path = '%s%s%s%s' % (parsed.path, params, query, fragment)
+    path_for_matching = full_path
+
+    # override path_for_matching if we want to ignore a parameter
+    if query:
+      if self.match_rules and parsed.path in self.match_rules:
+        def okpair(x):
+          return x.split('=')[0] not in self.match_rules[parsed.path]
+        only_good_params = filter(okpair, query[1:].split('&'))
+        query_for_matching = '?' + '&'.join(only_good_params)
+        path_for_matching = '%s%s%s%s' % (parsed.path, params, query_for_matching, fragment)
+        if len(path_for_matching) < len(full_path):
+          logging.debug('%s is in the match_rules keys, so ignoring params: %s',
+                        parsed.path, self.match_rules[parsed.path])
+          logging.debug('host is %s', host)
+
+
+    more_undesirable_keys = None
+    if parsed.path == '/maps/preview/log204':
+      more_undesirable_keys = ['cache-control']
 
     return httparchive.ArchivedHttpRequest(
         self.command,
         host,
         full_path,
+        path_for_matching,
         self.read_request_body(),
         self.get_header_dict(),
-        self.server.is_ssl)
+        self.server.is_ssl,
+        more_undesirable_keys)
 
   def send_archived_http_response(self, response):
     try:
@@ -163,7 +185,7 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
       self.do_parse_and_handle_one_request()
     except socket.timeout, e:
       # A read or a write timed out.  Discard this connection
-      self.log_error('Request timed out: %r', e)
+      self.log_error("Request timed out: %r", e)
       self.close_connection = 1
       return
     except socket.error, e:
@@ -193,7 +215,16 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
       try:
         request = self.get_archived_http_request()
-
+        if ('client_204' in request.path or
+            'generate_204' in request.path or
+            'gen_204' in request.path or
+            'log204' in request.path or
+            'lsp.aspx' in request.path):
+          logging.debug(request.path)
+          logging.debug(request.host)
+          logging.debug('XXXX WE GOT A 204 XXXX')
+          self.send_error(204)
+          return
         if request is None:
           self.send_error(500)
           return
@@ -207,7 +238,7 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
       finally:
         self.wfile.flush()  # Actually send the response if not already done.
     finally:
-      request_time_ms = (time.time() - start_time) * 1000.0
+      request_time_ms = (time.time() - start_time) * 1000.0;
       if request:
         self.has_handled_request = True
         logging.debug('Served: %s (%dms)', request, request_time_ms)
@@ -237,7 +268,7 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
   daemon_threads = True
 
   def __init__(self, http_archive_fetch, custom_handlers,
-               host='localhost', port=80, use_delays=False, is_ssl=False,
+               host='localhost', port=80, match_rules=None, use_delays=False, is_ssl=False,
                protocol='HTTP',
                down_bandwidth='0', up_bandwidth='0', delay_ms='0'):
     """Start HTTP server.
@@ -260,6 +291,9 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
     self.http_archive_fetch = http_archive_fetch
     self.custom_handlers = custom_handlers
     self.use_delays = use_delays
+    self.match_rules = {'/fd/ls/l': ['DATA'], '/gen_204': ['rt','xjs']}
+    #self.match_rules = match_rules
+    self.HANDLER.match_rules = self.match_rules
     self.is_ssl = is_ssl
     self.traffic_shaping_down_bps = proxyshaper.GetBitsPerSecond(down_bandwidth)
     self.traffic_shaping_up_bps = proxyshaper.GetBitsPerSecond(up_bandwidth)
@@ -293,7 +327,7 @@ class HttpsProxyServer(HttpProxyServer):
     self.ca_cert_path = https_root_ca_cert_path
     self.HANDLER = sslproxy.wrap_handler(HttpArchiveHandler)
     HttpProxyServer.__init__(self, http_archive_fetch, custom_handlers,
-                             is_ssl=True, protocol='HTTPS', **kwargs)
+                             is_ssl=True, **kwargs)
     self.http_archive_fetch.http_archive.set_root_cert(https_root_ca_cert_path)
 
   def cleanup(self):

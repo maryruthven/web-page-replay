@@ -280,43 +280,43 @@ class HttpArchive(dict, persistentmixin.PersistentMixin):
     stats['HTTP_response_code'] = defaultdict(int)
     stats['content_type'] = defaultdict(int)
     stats['Documents'] = defaultdict(int)
-
+    
     for request in matching_requests:
       stats['Domains'][request.host] += 1
       stats['HTTP_response_code'][self[request].status] += 1
-
+      
       content_type = self[request].get_header('content-type')
       # Remove content type options for readability and higher level groupings.
-      str_content_type = str(content_type.split(';')[0]
+      str_content_type = str(content_type.split(';')[0] 
                             if content_type else None)
       stats['content_type'][str_content_type] += 1
 
       #  Documents are the main URL requested and not a referenced resource.
       if str_content_type == 'text/html' and not 'referer' in request.headers:
         stats['Documents'][request.host] += 1
-
+    
     print >>out, json.dumps(stats, indent=4)
     return out.getvalue()
 
   def merge(self, merged_archive=None, other_archives=None):
-    """Merge multiple archives into merged_archive by 'chaining' resources,
+    """Merge multiple archives into merged_archive by 'chaining' resources, 
     only resources that are not part of the accumlated archive are added"""
     if not other_archives:
       print 'No archives passed to merge'
       return
-
-    # Note we already loaded 'replay_file'.
+    
+    # Note we already loaded 'replay_file'. 
     print 'Loaded %d responses' % len(self)
 
     for archive in other_archives:
       if not os.path.exists(archive):
         print 'Error: Replay file "%s" does not exist' % archive
         return
-
+      
       http_archive_other = HttpArchive.Load(archive)
       print 'Loaded %d responses from %s' % (len(http_archive_other), archive)
       for r in http_archive_other:
-        # Only resources that are not already part of the current archive
+        # Only resources that are not already part of the current archive 
         # get added.
         if r not in self:
           print '\t %s ' % r
@@ -415,18 +415,18 @@ class HttpArchive(dict, persistentmixin.PersistentMixin):
     with open(cert_path, 'r') as cert_file:
       cert_str = cert_file.read()
     cert_str_response = create_response(200, body=cert_str)
-    root_request = ArchivedHttpRequest('ROOT_CERT', '', '', None, {})
+    root_request = ArchivedHttpRequest('ROOT_CERT', '', '', '', None, {})
     self[root_request] = cert_str_response
 
   def _get_server_cert(self, host):
     """Gets certificate from the server and stores it in archive"""
-    request = ArchivedHttpRequest('SERVER_CERT', host, '', None, {})
+    request = ArchivedHttpRequest('SERVER_CERT', host, '', '', None, {})
     if request not in self:
       self[request] = create_response(200, body=certutils.get_host_cert(host))
     return self[request].response_data[0]
 
   def _get_root_cert(self):
-    request = ArchivedHttpRequest('ROOT_CERT', '', '', None, {})
+    request = ArchivedHttpRequest('ROOT_CERT', '', '', '', None, {})
     if request not in self:
       raise KeyError('Root cert is not in the archive')
     return self[request].response_data[0]
@@ -438,7 +438,7 @@ class HttpArchive(dict, persistentmixin.PersistentMixin):
         root_ca_cert_str, self._get_server_cert(host), host)
 
   def get_certificate(self, host):
-    request = ArchivedHttpRequest('DUMMY_CERT', host, '', None, {})
+    request = ArchivedHttpRequest('DUMMY_CERT', host, '', '', None, {})
     if request not in self:
       self[request] = create_response(200, body=self._generate_cert(host))
     return self[request].response_data[0]
@@ -462,8 +462,8 @@ class ArchivedHttpRequest(object):
       'if-none-match', 'if-match',
       'if-modified-since', 'if-unmodified-since']
 
-  def __init__(self, command, host, full_path, request_body, headers,
-               is_ssl=False):
+  def __init__(self, command, host, full_path, path_for_matching, request_body,
+               headers, is_ssl=False, more_undesirable_keys=None):
     """Initialize an ArchivedHttpRequest.
 
     Args:
@@ -473,26 +473,28 @@ class ArchivedHttpRequest(object):
           the URL (e.g. '/search?q=dogs').
       request_body: a request body string for a POST or None.
       headers: {key: value, ...} where key and value are strings.
-      is_ssl: a boolean which is True iff request is make via SSL.
+      is_ssl: a boolean which is True if request is make via SSL.
     """
     self.command = command
     self.host = host
     self.full_path = full_path
     self.path = urlparse.urlparse(full_path).path if full_path else None
+    self.path_for_matching = path_for_matching
     self.request_body = request_body
     self.headers = headers
     self.is_ssl = is_ssl
-    self.trimmed_headers = self._TrimHeaders(headers)
+    self.has_cookies = 'cookie' in headers
+    self.trimmed_headers = self._TrimHeaders(headers, more_undesirable_keys)
     self.formatted_request = self._GetFormattedRequest()
 
   def __str__(self):
     scheme = 'https' if self.is_ssl else 'http'
-    return '%s %s://%s%s %s' % (
-        self.command, scheme, self.host, self.full_path, self.trimmed_headers)
+    return '%s %s://%s%s %s hascookies=%s' % (
+        self.command, scheme, self.host, self.path_for_matching, self.trimmed_headers, self.has_cookies)
 
   def __repr__(self):
-    return repr((self.command, self.host, self.full_path, self.request_body,
-                 self.trimmed_headers, self.is_ssl))
+    return repr((self.command, self.host, self.path_for_matching, self.request_body,
+                 self.trimmed_headers, self.is_ssl, self.has_cookies))
 
   def __hash__(self):
     """Return a integer hash to use for hashed collections including dict."""
@@ -564,7 +566,7 @@ class ArchivedHttpRequest(object):
 
   def matches(self, command=None, host=None, full_path=None, is_ssl=None,
               use_query=True):
-    """Returns true iff the request matches all parameters.
+    """Returns true if the request matches all parameters.
 
     Args:
       command: a string (e.g. 'GET' or 'POST').
@@ -583,7 +585,7 @@ class ArchivedHttpRequest(object):
         If use_query is False, req1.matches(req2) evaluates to True
 
     Returns:
-      True iff the request matches all parameters
+      True if the request matches all parameters
     """
     if command is not None and command != self.command:
       return False
@@ -599,14 +601,13 @@ class ArchivedHttpRequest(object):
       return self.path == urlparse.urlparse(full_path).path
 
   @classmethod
-  def _TrimHeaders(cls, headers):
+  def _TrimHeaders(cls, headers, more_undesirable_keys=None):
     """Removes headers that are known to cause problems during replay.
 
     These headers are removed for the following reasons:
     - accept: Causes problems with www.bing.com. During record, CSS is fetched
               with *. During replay, it's text/css.
     - accept-charset, accept-language, referer: vary between clients.
-    - cache-control:  sometimes sent from Chrome with 'max-age=0' as value.
     - connection, method, scheme, url, version: Cause problems with spdy.
     - cookie: Extremely sensitive to request/response order.
     - keep-alive: Not supported by Web Page Replay.
@@ -637,6 +638,9 @@ class ArchivedHttpRequest(object):
         'connection', 'cookie', 'keep-alive', 'method',
         'referer', 'scheme', 'url', 'version', 'user-agent', 'proxy-connection',
         'x-chrome-variations']
+    if more_undesirable_keys:
+      undesirable_keys.extend(more_undesirable_keys)
+
     return sorted([(k, v) for k, v in headers.items()
                    if k.lower() not in undesirable_keys])
 
@@ -651,7 +655,7 @@ class ArchivedHttpRequest(object):
     stripped_headers = dict((k, v) for k, v in self.headers.iteritems()
                             if k.lower() not in self.CONDITIONAL_HEADERS)
     return ArchivedHttpRequest(
-        self.command, self.host, self.full_path, self.request_body,
+        self.command, self.host, self.full_path, self.full_path, self.request_body,
         stripped_headers, self.is_ssl)
 
 class ArchivedHttpResponse(object):
