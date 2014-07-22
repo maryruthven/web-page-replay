@@ -19,7 +19,7 @@
   - Return the given RESPONSE_CODE.
 /web-page-replay-post-image-[FILENAME]
   - Save the posted image to local disk.
-/web-page-replay-command-[record|replay|status]
+/web-page-replay-command-[cert|record|replay|status]
   - Optional. Enable by calling custom_handlers.add_server_manager_handler(...).
   - Change the server mode to either record or replay.
     + When switching to record, the http_archive is cleared.
@@ -176,7 +176,14 @@ class CustomHandlers(object):
       Otherwise, None.
     """
     command = url_suffix
-    if command == 'record':
+    if command == 'get-cert':
+      cert_file = None
+      self.server_manager.CreateCert(cert_file)
+      self.server_manager.SetCert(cert_file)
+    elif command == 'post-cert':
+      cert_file = None
+      self.server_manager.SetCert(cert_file)
+    elif command == 'record':
       self.server_manager.SetRecordMode()
       return SimpleResponse(200)
     elif command == 'replay':
