@@ -591,7 +591,7 @@ def main():
     option_parser.error('Must specify a replay_file')
   else:
     replay_filename = args[0]
-  
+
   return replay(options, replay_filename)
 
 
