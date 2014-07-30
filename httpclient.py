@@ -466,8 +466,6 @@ class ReplayHttpArchiveFetch(object):
     return response
 
 def mutate_response(request, response, callback_paths, ignore_paths):
-  logging.error('callbacks %s', ' '.join(callback_paths))
-  logging.error('ignore %s', ' '.join(ignore_paths))
   for callback_path in callback_paths:
     if re.match(r'%s' % callback_path, request.full_path):
       logging.info('doing callback replacement')
