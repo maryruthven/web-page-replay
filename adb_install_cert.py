@@ -5,25 +5,20 @@ import os
 import subprocess
 import sys
 
-import certutils
-
 KEYCODE_ENTER = '66'
 KEYCODE_TAB = '61'
 
-def create_cert(subject, cert_path):
-  certutils.write_dummy_ca_cert(*certutils.generate_dummy_ca_cert(subject), cert_path=cert_path)
 
 class AndroidCertInstaller(object):
   """Certificate installer for phones with KitKat."""
 
-  def __init__(self, device_id, cert_name, cert_path, remove):
+  def __init__(self, device_id, cert_name, cert_path):
     if not os.path.exists(cert_path):
       raise ValueError('Not a valid certificate path')
     self.device_id = device_id
     self.cert_name = cert_name
     self.cert_path = cert_path
     self.file_name = os.path.basename(self.cert_path)
-    self.remove = remove
 
   def _run_cmd(self, cmd):
     return subprocess.check_output(cmd)
@@ -96,10 +91,8 @@ class AndroidCertInstaller(object):
                                  % self.reformatted_cert_path)
 
     if self._is_cert_installed():
-      if overwrite_cert or self.remove:
+      if overwrite_cert:
         self._remove_cert_from_cacerts()
-        if self.remove:
-          return
       else:
         logging.info('cert is already installed')
         return
@@ -162,19 +155,13 @@ def parse_args():
       '--device-id', help='device serial number')
   parser.add_argument(
       'cert_path', help='Certificate file path')
-  parser.add_argument(
-      '--subject', default=None, action='store',  help='CA subject')
-  parser.add_argument(
-      '--remove', default=False, action='store_true')
   return parser.parse_args()
 
 
 def main():
   args = parse_args()
-  if args.subject:
-    create_cert(args.subject, args.cert_path)
   cert_installer = AndroidCertInstaller(args.device_id, args.cert_name,
-                                        args.cert_path, args.remove)
+                                        args.cert_path)
   cert_installer.install_cert(args.overwrite)
 
 

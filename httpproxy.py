@@ -60,7 +60,7 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
           self.server.traffic_shaping_down_bps)
     self.has_handled_request = False
     self.create_rules()
-   
+
   def create_rules(self):
     self.client_204_paths = set()
     self.undesirable_archive_paths = set()
@@ -78,7 +78,7 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
   def finish(self):
     BaseHTTPServer.BaseHTTPRequestHandler.finish(self)
     if not self.has_handled_request:
-      logging.error('Unable to complete request')
+      logging.error('Client failed to make request')
 
   # Make request handler logging match our logging format.
   def log_request(self, code='-', size='-'): pass
@@ -202,7 +202,7 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
       self.do_parse_and_handle_one_request()
     except socket.timeout, e:
       # A read or a write timed out.  Discard this connection
-      self.log_error("Request timed out: %r", e)
+      self.log_error('Request timed out: %r', e)
       self.close_connection = 1
       return
     except socket.error, e:
@@ -234,8 +234,7 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         request = self.get_archived_http_request()
         for path in self.client_204_paths:
            if path in request.path:
-             logging.debug(request.path)
-             logging.debug(request.host)
+             logging.debug('%s %s', request.host, request.path)
              logging.debug('XXXX WE GOT A 204 XXXX')
              self.send_error(204)
              return
@@ -323,7 +322,7 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
       "disableCacheControl"]
     ]
     """)
- 
+
     # Note: This message may be scraped. Do not change it.
     logging.warning(
         '%s server started on %s:%d' % (self.protocol, self.server_address[0],
@@ -349,7 +348,7 @@ class HttpsProxyServer(HttpProxyServer):
     self.ca_cert_path = https_root_ca_cert_path
     self.HANDLER = sslproxy.wrap_handler(HttpArchiveHandler)
     HttpProxyServer.__init__(self, http_archive_fetch, custom_handlers,
-                             is_ssl=True, **kwargs)
+                             is_ssl=True, protocol='HTTPS', **kwargs)
     self.http_archive_fetch.http_archive.set_root_cert(https_root_ca_cert_path)
 
   def cleanup(self):

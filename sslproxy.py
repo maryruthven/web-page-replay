@@ -3,10 +3,9 @@ import logging
 import socket
 
 import certutils
-import httparchive
 
 
-class SSLHandshakeHandler:
+class SslHandshakeHandler:
   """Handles Server Name Indication (SNI) using dummy certs."""
 
   def setup(self):
@@ -29,7 +28,7 @@ class SSLHandshakeHandler:
         # else: fail with 'no shared cipher'
       except Exception, e:
         # Do not leak any exceptions or else openssl crashes.
-        print('Exception in SNI handler', e)
+        logging.error('Exception in SNI handler', e)
 
     context.set_tlsext_servername_callback(handle_servername)
     self.connection = certutils.get_ssl_connection(context, self.connection)
@@ -59,13 +58,14 @@ def wrap_handler(handler_class):
   if certutils.openssl_import_error:
     raise certutils.openssl_import_error
 
-  class WrappedHandler(SSLHandshakeHandler, handler_class):
+  class WrappedHandler(SslHandshakeHandler, handler_class):
 
     def setup(self):
       handler_class.setup(self)
-      SSLHandshakeHandler.setup(self)
+      SslHandshakeHandler.setup(self)
 
     def finish(self):
       handler_class.finish(self)
-      SSLHandshakeHandler.finish(self)
+      SslHandshakeHandler.finish(self)
   return WrappedHandler
+
