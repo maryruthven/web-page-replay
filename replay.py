@@ -154,8 +154,20 @@ def AddWebProxy(server_manager, options, host, real_dns_lookup, http_archive,
         scramble_images=options.scramble_images)
     server_manager.AppendRecordCallback(archive_fetch.SetRecordMode)
     server_manager.AppendReplayCallback(archive_fetch.SetReplayMode)
+    json_rules ="""
+    [
+     ["isOverridePath", {"/fd/ls/l": ["DATA"], "/gen_204": ["rtr","xjs"]},
+      "ignoreParameter"],
+     ["isProxyRequest",
+      ["client_204 generate_204", "gen_204", "log204", "lsp.aspx", "configurations/pep/pipeline/"],
+      "sendError"],
+     ["isArchiveRequest", ["/maps/preview/log204"],
+      "disableCacheControl"]
+    ]
+    """
     if options.match_rules:
       match_rules_dict = ast.literal_eval(options.match_rules.strip())
+      logging.error(options.match_rules.strip())
     else:
       match_rules_dict = None
     server_manager.Append(
@@ -169,14 +181,14 @@ def AddWebProxy(server_manager, options, host, real_dns_lookup, http_archive,
         server_manager.Append(
             httpproxy.HttpsProxyServer,
             archive_fetch, custom_handlers, options.https_root_ca_cert_path, host=host,
-            port=options.ssl_port, match_rules=match_rules_dict,
+            port=options.ssl_port, rules=json_rules,
             use_delays=options.use_server_delay,
             **options.shaping_http)
       else:
         server_manager.Append(
             httpproxy.SingleCertHttpsProxyServer,
             archive_fetch, custom_handlers, options.https_root_ca_cert_path, host=host,
-            port=options.ssl_port, match_rules=match_rules_dict,
+            port=options.ssl_port, rules=json_rules,
             use_delays=options.use_server_delay,
             **options.shaping_http)
     if options.http_to_https_port:

@@ -19,15 +19,11 @@ import errno
 import httparchive
 import json
 import logging
-import os
 import proxyshaper
-import re
 import socket
 import SocketServer
 import ssl
 import sslproxy
-import subprocess
-import sys
 import time
 import urlparse
 
@@ -251,7 +247,7 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
       finally:
         self.wfile.flush()  # Actually send the response if not already done.
     finally:
-      request_time_ms = (time.time() - start_time) * 1000.0;
+      request_time_ms = (time.time() - start_time) * 1000.0
       if request:
         self.has_handled_request = True
         logging.debug('Served: %s (%dms)', request, request_time_ms)
@@ -281,7 +277,7 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
   daemon_threads = True
 
   def __init__(self, http_archive_fetch, custom_handlers,
-               host='localhost', port=80, match_rules=None, use_delays=False, is_ssl=False,
+               host='localhost', port=80, rules=None, use_delays=False, is_ssl=False,
                protocol='HTTP',
                down_bandwidth='0', up_bandwidth='0', delay_ms='0'):
     """Start HTTP server.
@@ -311,17 +307,7 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
     self.num_active_requests = 0
     self.total_request_time = 0
     self.protocol = protocol
-    self.rules = json.loads("""
-    [
-     ["isOverridePath", {"/fd/ls/l": ["DATA"], "/gen_204": ["rtr","xjs"]},
-      "ignoreParameter"],
-     ["isProxyRequest",
-      ["client_204 generate_204", "gen_204", "log204", "lsp.aspx", "configurations/pep/pipeline/"],
-      "sendError"],
-     ["isArchiveRequest", ["/maps/preview/log204"],
-      "disableCacheControl"]
-    ]
-    """)
+    self.rules = json.loads(rules)
 
     # Note: This message may be scraped. Do not change it.
     logging.warning(
