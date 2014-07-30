@@ -415,18 +415,18 @@ class HttpArchive(dict, persistentmixin.PersistentMixin):
     with open(cert_path, 'r') as cert_file:
       cert_str = cert_file.read()
     cert_str_response = create_response(200, body=cert_str)
-    root_request = ArchivedHttpRequest('ROOT_CERT', '', '', '', None, {})
+    root_request = ArchivedHttpRequest('ROOT_CERT', '', '', None, {})
     self[root_request] = cert_str_response
 
   def _get_server_cert(self, host):
     """Gets certificate from the server and stores it in archive"""
-    request = ArchivedHttpRequest('SERVER_CERT', host, '', '', None, {})
+    request = ArchivedHttpRequest('SERVER_CERT', host, '', None, {})
     if request not in self:
       self[request] = create_response(200, body=certutils.get_host_cert(host))
     return self[request].response_data[0]
 
   def _get_root_cert(self):
-    request = ArchivedHttpRequest('ROOT_CERT', '', '', '', None, {})
+    request = ArchivedHttpRequest('ROOT_CERT', '', '', None, {})
     if request not in self:
       raise KeyError('Root cert is not in the archive')
     return self[request].response_data[0]
@@ -438,7 +438,7 @@ class HttpArchive(dict, persistentmixin.PersistentMixin):
         root_ca_cert_str, self._get_server_cert(host), host)
 
   def get_certificate(self, host):
-    request = ArchivedHttpRequest('DUMMY_CERT', host, '', '', None, {})
+    request = ArchivedHttpRequest('DUMMY_CERT', host, '', None, {})
     if request not in self:
       self[request] = create_response(200, body=self._generate_cert(host))
     return self[request].response_data[0]
@@ -462,8 +462,9 @@ class ArchivedHttpRequest(object):
       'if-none-match', 'if-match',
       'if-modified-since', 'if-unmodified-since']
 
-  def __init__(self, command, host, full_path, path_for_matching, request_body,
-               headers, is_ssl=False, more_undesirable_keys=None):
+  def __init__(self, command, host, full_path, request_body, headers,
+               is_ssl=False, path_for_matching=None,
+               more_undesirable_keys=None):
     """Initialize an ArchivedHttpRequest.
 
     Args:
@@ -479,22 +480,23 @@ class ArchivedHttpRequest(object):
     self.host = host
     self.full_path = full_path
     self.path = urlparse.urlparse(full_path).path if full_path else None
-    self.path_for_matching = path_for_matching
     self.request_body = request_body
     self.headers = headers
     self.is_ssl = is_ssl
-    self.has_cookies = 'cookie' in headers
     self.trimmed_headers = self._TrimHeaders(headers, more_undesirable_keys)
     self.formatted_request = self._GetFormattedRequest()
+    self.path_for_matching = (
+       path_for_matching if path_for_matching else full_path)
 
   def __str__(self):
     scheme = 'https' if self.is_ssl else 'http'
-    return '%s %s://%s%s %s hascookies=%s' % (
-        self.command, scheme, self.host, self.path_for_matching, self.trimmed_headers, self.has_cookies)
+    return '%s %s://%s%s %s' % (
+        self.command, scheme, self.host, self.path_for_matching,
+        self.trimmed_headers)
 
   def __repr__(self):
-    return repr((self.command, self.host, self.path_for_matching, self.request_body,
-                 self.trimmed_headers, self.is_ssl, self.has_cookies))
+    return repr((self.command, self.host, self.path_for_matching,
+                 self.request_body, self.trimmed_headers, self.is_ssl))
 
   def __hash__(self):
     """Return a integer hash to use for hashed collections including dict."""
@@ -655,7 +657,7 @@ class ArchivedHttpRequest(object):
     stripped_headers = dict((k, v) for k, v in self.headers.iteritems()
                             if k.lower() not in self.CONDITIONAL_HEADERS)
     return ArchivedHttpRequest(
-        self.command, self.host, self.full_path, self.full_path, self.request_body,
+        self.command, self.host, self.full_path, self.request_body,
         stripped_headers, self.is_ssl)
 
 class ArchivedHttpResponse(object):

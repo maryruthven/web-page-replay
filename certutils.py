@@ -231,4 +231,3 @@ def generate_cert(root_ca_cert_str, server_cert_str, server_host):
   cert.set_pubkey(req.get_pubkey())
   cert.sign(key, 'sha1')
   return _dump_cert(cert)
-

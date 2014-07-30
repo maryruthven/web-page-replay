@@ -15,20 +15,17 @@
 
 """Retrieve web resources over http."""
 
-import certutils
 import copy
-import httparchive
 import httplib
 import logging
-import os
-import platformsettings
 import random
 import re
-import script_injector
-import socket
 import StringIO
-import time
-import util
+
+import httparchive
+import platformsettings
+import script_injector
+
 
 # PIL isn't always available, but we still want to be able to run without
 # the image scrambling functionality in this case.
@@ -68,6 +65,7 @@ def _InjectScripts(response, inject_script):
       response.set_data(text)
   return response
 
+
 def _ScrambleImages(response):
   """If the |response| is an image, attempt to scramble it.
 
@@ -101,10 +99,11 @@ def _ScrambleImages(response):
 
       response = copy.deepcopy(response)
       response.set_data(output_image_data)
-    except Exception, err:
+    except Exception:
       pass
 
   return response
+
 
 class DetailedHTTPResponse(httplib.HTTPResponse):
   """Preserve details relevant to replaying responses.
@@ -181,16 +180,14 @@ class DetailedHTTPSResponse(DetailedHTTPResponse):
   """Preserve details relevant to replaying SSL responses."""
   pass
 
+
 class DetailedHTTPSConnection(httplib.HTTPSConnection):
   """Preserve details relevant to replaying SSL connections."""
   response_class = DetailedHTTPSResponse
 
-  def getresponse(self):
-    response = httplib.HTTPSConnection.getresponse(self)
-    return response
-
 
 class RealHttpFetch(object):
+
   def __init__(self, real_dns_lookup):
     """Initialize RealHttpFetch.
 
@@ -386,7 +383,7 @@ class RecordHttpArchiveFetch(object):
     if request in self.http_archive:
       logging.debug('Repeated request found: %s', request)
       response = self.http_archive[request]
-      mutate_response(request, response)
+      mutate_response(request, response, self.callback_paths, self.ignore_paths)
     else:
       response = self.real_http_fetch(request)
       if response is None:
@@ -437,7 +434,7 @@ class ReplayHttpArchiveFetch(object):
       return self.real_http_fetch(request)
 
     response = self.http_archive.get(request)
-    mutate_response(request, response)
+    mutate_response(request, response, self.callback_paths, self.ignore_paths)
 
     if self.use_closest_match and not response:
       closest_request = self.http_archive.find_closest_request(
@@ -468,18 +465,21 @@ class ReplayHttpArchiveFetch(object):
         response = _ScrambleImages(response)
     return response
 
-def mutate_response(request, response):
-  if re.match(r'/maps/vt.*callbacks.*', request.full_path) or re.match(r'/vt.*callbacks.*', request.full_path):
-    logging.info('doing callback replacement')
-    newkey = request.full_path.rsplit('callback=_callbacks_._', 1)[1]
-    resp_text = response.get_response_as_text()
-    oldkey = re.search('_callbacks_._(.{9})', resp_text).group(1)
-    logging.info("oldkey = %s", oldkey)
-    new_resp_text = resp_text.replace(oldkey, newkey)
-    logging.info('new_resp_text: %s', new_resp_text)
-    response.set_response_from_text(new_resp_text)
+def mutate_response(request, response, callback_paths, ignore_paths):
+  logging.error('callbacks %s', ' '.join(callback_paths))
+  logging.error('ignore %s', ' '.join(ignore_paths))
+  for callback_path in callback_paths:
+    if re.match(r'%s' % callback_path, request.full_path):
+      logging.info('doing callback replacement')
+      newkey = request.full_path.rsplit('callback=_callbacks_._', 1)[1]
+      resp_text = response.get_response_as_text()
+      oldkey = re.search('_callbacks_._(.{9})', resp_text).group(1)
+      logging.info("oldkey = %s", oldkey)
+      new_resp_text = resp_text.replace(oldkey, newkey)
+      logging.info('new_resp_text: %s', new_resp_text)
+      response.set_response_from_text(new_resp_text)
 
-  if request.path in (r'/signorethis', r'/searchignorethis'):
+  if request.path in ignore_paths:
     logging.info('matched! %s', request.path)
     resp_text = response.get_response_as_text()
     logging.info('len resp = %d', len(resp_text))
@@ -539,6 +539,12 @@ class ControllableHttpArchiveFetch(object):
       self.SetRecordMode()
     else:
       self.SetReplayMode()
+
+  def setResponseMutations(self, callback_paths, ignore_paths):
+    self.replay_fetch.callback_paths = callback_paths
+    self.replay_fetch.ignore_paths = ignore_paths
+    self.record_fetch.callback_paths = callback_paths
+    self.record_fetch.ignore_paths = ignore_paths
 
   def SetRecordMode(self):
     self.fetch = self.record_fetch

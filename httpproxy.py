@@ -14,23 +14,24 @@
 # limitations under the License.
 
 import BaseHTTPServer
-import daemonserver
 import errno
-import httparchive
-import json
 import logging
-import proxyshaper
 import socket
 import SocketServer
 import ssl
-import sslproxy
 import time
 import urlparse
+
+import daemonserver
+import httparchive
+import proxyshaper
+import sslproxy
 
 
 class HttpProxyError(Exception):
   """Module catch-all error."""
   pass
+
 
 class HttpProxyServerError(HttpProxyError):
   """Raised for errors like 'Address already in use'."""
@@ -55,21 +56,6 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
           self.server.get_active_request_count, self.wfile,
           self.server.traffic_shaping_down_bps)
     self.has_handled_request = False
-    self.create_rules()
-
-  def create_rules(self):
-    self.client_204_paths = set()
-    self.undesirable_archive_paths = set()
-    for rule, paths, action in self.server.rules:
-      if rule == 'isOverridePath':
-        assert action == 'ignoreParameter'
-        self.match_rules = paths
-      if rule == 'isProxyRequest':
-        assert action == 'sendError'
-        self.client_204_paths.update(paths)
-      elif rule == 'isArchiveRequest':
-        assert action == 'disableCacheControl'
-        self.undesirable_archive_paths.update(paths)
 
   def finish(self):
     BaseHTTPServer.BaseHTTPRequestHandler.finish(self)
@@ -106,20 +92,21 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
     # override path_for_matching if we want to ignore a parameter
     if query:
-      if self.match_rules and parsed.path in self.match_rules:
+      if self.server.match_rules and parsed.path in self.server.match_rules:
         def okpair(x):
-          return x.split('=')[0] not in self.match_rules[parsed.path]
+          return x.split('=')[0] not in self.server.match_rules[parsed.path]
         only_good_params = filter(okpair, query[1:].split('&'))
         query_for_matching = '?' + '&'.join(only_good_params)
-        path_for_matching = '%s%s%s%s' % (parsed.path, params, query_for_matching, fragment)
+        path_for_matching = '%s%s%s%s' % (parsed.path, params,
+                                          query_for_matching, fragment)
         if len(path_for_matching) < len(full_path):
           logging.debug('%s is in the match_rules keys, so ignoring params: %s',
-                        parsed.path, self.match_rules[parsed.path])
+                        parsed.path, self.server.match_rules[parsed.path])
           logging.debug('host is %s', host)
 
 
     more_undesirable_keys = None
-    for archive_path in self.undesirable_archive_paths:
+    for archive_path in self.server.undesirable_archive_paths:
       if parsed.path == archive_path:
         more_undesirable_keys = ['cache-control']
 
@@ -127,10 +114,10 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.command,
         host,
         full_path,
-        path_for_matching,
         self.read_request_body(),
         self.get_header_dict(),
         self.server.is_ssl,
+        path_for_matching,
         more_undesirable_keys)
 
   def send_archived_http_response(self, response):
@@ -228,9 +215,10 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
       try:
         request = self.get_archived_http_request()
-        for path in self.client_204_paths:
+        for path in self.server.client_204_paths:
            if path in request.path:
-             logging.debug('%s %s', request.host, request.path)
+             logging.debug(request.path)
+             logging.debug(request.host)
              logging.debug('XXXX WE GOT A 204 XXXX')
              self.send_error(204)
              return
@@ -277,9 +265,9 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
   daemon_threads = True
 
   def __init__(self, http_archive_fetch, custom_handlers,
-               host='localhost', port=80, rules=None, use_delays=False, is_ssl=False,
-               protocol='HTTP',
-               down_bandwidth='0', up_bandwidth='0', delay_ms='0'):
+               host='localhost', port=80, rules=[], use_delays=False,
+               is_ssl=False, protocol='HTTP', down_bandwidth='0',
+               up_bandwidth='0', delay_ms='0'):
     """Start HTTP server.
 
     Args:
@@ -307,12 +295,40 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
     self.num_active_requests = 0
     self.total_request_time = 0
     self.protocol = protocol
-    self.rules = json.loads(rules)
+    self.rules = rules
+    self.create_rules()
 
     # Note: This message may be scraped. Do not change it.
     logging.warning(
         '%s server started on %s:%d' % (self.protocol, self.server_address[0],
                                         self.server_address[1]))
+
+  def create_rules(self):
+    self.client_204_paths = set()
+    self.undesirable_archive_paths = set()
+    ignore_paths = set()
+    callback_paths = set()
+
+    self.match_rules = {}
+    for rule, paths, action in self.rules:
+      if rule == "isCallbackPath":
+        assert action == "replaceCallback"
+        callback_paths.update(paths)
+      elif rule == "isIgnoredPath":
+        assert action == "ignorePath"
+        ignore_paths.update(paths)
+      elif rule == 'isOverridePath':
+        assert action == 'ignoreParameter'
+        self.match_rules = paths
+      elif rule == 'isProxyRequest':
+        assert action == 'sendError'
+        self.client_204_paths.update(paths)
+      elif rule == 'isArchiveRequest':
+        assert action == 'disableCacheControl'
+        self.undesirable_archive_paths.update(paths)
+
+    self.http_archive_fetch.setResponseMutations(callback_paths, ignore_paths)
+
 
   def cleanup(self):
     try:

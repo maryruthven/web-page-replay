@@ -40,13 +40,10 @@ Network simulation examples:
 """
 
 import ast
-import datetime
 import json
 import logging
 import optparse
 import os
-import re
-import signal
 import socket
 import sys
 import traceback
@@ -91,18 +88,6 @@ def configure_logging(log_level_name, log_file_name=None):
   system_handler = platformsettings.get_system_logging_handler()
   if system_handler:
     logger.addHandler(system_handler)
-
-
-def print_threads(_sig, _frame):
-  now = datetime.datetime.now()
-  timestamp = now.strftime('I%m%d %T') + ('.%06d' % now.microsecond)
-  lines = []
-  for threadId, stack in sys._current_frames().items():
-    lines.append('\nThread %s {\n' % threadId)
-    lines.extend(traceback.format_list(traceback.extract_stack(stack)))
-    lines.append('}')
-  content = re.sub(r'\n', '\\n  ', (''.join(lines)))
-  print >> sys.stderr, '%s - - Tracebacks {%s\n}' % (timestamp, content)
 
 
 def AddDnsForward(server_manager, host):
@@ -154,8 +139,16 @@ def AddWebProxy(server_manager, options, host, real_dns_lookup, http_archive,
         scramble_images=options.scramble_images)
     server_manager.AppendRecordCallback(archive_fetch.SetRecordMode)
     server_manager.AppendReplayCallback(archive_fetch.SetReplayMode)
-    json_rules ="""
+    if options.match_rules:
+      match_rules_dict = ast.literal_eval(options.match_rules.strip())
+    else:
+      match_rules_dict = None
+    json_rules = json.loads("""
     [
+     ["isCallbackPath", ["/vt.*callbacks.*", "/maps/vt.*callbacks.*"],
+      "replaceCallback"],
+     ["isIgnoredPath", ["/signorethis", "/searchignorethis"],
+      "ignorePath"],
      ["isOverridePath", {"/fd/ls/l": ["DATA"], "/gen_204": ["rtr","xjs"]},
       "ignoreParameter"],
      ["isProxyRequest",
@@ -164,30 +157,24 @@ def AddWebProxy(server_manager, options, host, real_dns_lookup, http_archive,
      ["isArchiveRequest", ["/maps/preview/log204"],
       "disableCacheControl"]
     ]
-    """
-    if options.match_rules:
-      match_rules_dict = ast.literal_eval(options.match_rules.strip())
-      logging.error(options.match_rules.strip())
-    else:
-      match_rules_dict = None
+    """)
     server_manager.Append(
         httpproxy.HttpProxyServer,
-        archive_fetch, custom_handlers, host=host,
-        port=options.port, match_rules=match_rules_dict, use_delays=options.use_server_delay,
+        archive_fetch, custom_handlers, host=host, port=options.port,
+        rules=json_rules, use_delays=options.use_server_delay,
         **options.shaping_http)
     if options.ssl:
-      if options.generate_certs:
-        logging.debug('generate %r' %options.generate_certs)
+      if options.should_generate_certs:
         server_manager.Append(
-            httpproxy.HttpsProxyServer,
-            archive_fetch, custom_handlers, options.https_root_ca_cert_path, host=host,
+            httpproxy.HttpsProxyServer, archive_fetch, custom_handlers,
+            options.https_root_ca_cert_path, host=host,
             port=options.ssl_port, rules=json_rules,
             use_delays=options.use_server_delay,
             **options.shaping_http)
       else:
         server_manager.Append(
-            httpproxy.SingleCertHttpsProxyServer,
-            archive_fetch, custom_handlers, options.https_root_ca_cert_path, host=host,
+            httpproxy.SingleCertHttpsProxyServer, archive_fetch,
+            custom_handlers, options.https_root_ca_cert_path, host=host,
             port=options.ssl_port, rules=json_rules,
             use_delays=options.use_server_delay,
             **options.shaping_http)
@@ -195,7 +182,7 @@ def AddWebProxy(server_manager, options, host, real_dns_lookup, http_archive,
       server_manager.Append(
           httpproxy.HttpToHttpsProxyServer,
           archive_fetch, custom_handlers,
-          host=host, port=options.http_to_https_port, match_rules=match_rules_dict,
+          host=host, port=options.http_to_https_port, rules=json_rules,
           use_delays=options.use_server_delay,
           **options.shaping_http)
 
@@ -206,6 +193,7 @@ def AddTrafficShaper(server_manager, options, host):
         trafficshaper.TrafficShaper, host=host,
         use_loopback=not options.server_mode and host == '127.0.0.1',
         **options.shaping_dummynet)
+
 
 class OptionsWrapper(object):
   """Add checks, updates, and methods to option values.
@@ -334,7 +322,6 @@ def replay(options, replay_filename):
   if options.admin_check and options.IsRootRequired():
     platformsettings.rerun_as_administrator()
   configure_logging(options.log_level, options.log_file)
-  signal.signal(signal.SIGUSR1, print_threads)
   server_manager = servermanager.ServerManager(options.record)
   cache_misses = None
   if options.cache_miss_file:
@@ -381,7 +368,8 @@ def replay(options, replay_filename):
       AddDnsProxy(server_manager, options, ipfw_dns_host, options.dns_port,
                   real_dns_lookup, http_archive)
     if options.ssl and options.https_root_ca_cert_path is None:
-      options.https_root_ca_cert_path = os.path.join(os.path.dirname(__file__), 'wpr_cert.pem')
+      options.https_root_ca_cert_path = os.path.join(os.path.dirname(__file__),
+                                                     'wpr_cert.pem')
     http_proxy_address = options.host
     if not http_proxy_address:
       http_proxy_address = platformsettings.get_httpproxy_ip_address(
@@ -577,10 +565,9 @@ def GetOptionParser():
       action='store',
       dest='match_rules',
       help='For hackage.')
-  harness_group.add_option('--generate_certs', default=False,
+  harness_group.add_option('--should_generate_certs', default=False,
       action='store_true',
       help='Use OpenSSL to generate certificate files for requested hosts.')
-  option_parser.add_option_group(harness_group)
   harness_group.add_option('--no-admin-check', default=True,
       action='store_false',
       dest='admin_check',
