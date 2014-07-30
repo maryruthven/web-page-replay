@@ -17,6 +17,7 @@ import BaseHTTPServer
 import daemonserver
 import errno
 import httparchive
+import json
 import logging
 import os
 import proxyshaper
@@ -58,6 +59,21 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
           self.server.get_active_request_count, self.wfile,
           self.server.traffic_shaping_down_bps)
     self.has_handled_request = False
+    self.create_rules()
+   
+  def create_rules(self):
+    self.client_204_paths = set()
+    self.undesirable_archive_paths = set()
+    for rule, paths, action in self.server.rules:
+      if rule == 'isOverridePath':
+        assert action == 'ignoreParameter'
+        self.match_rules = paths
+      if rule == 'isProxyRequest':
+        assert action == 'sendError'
+        self.client_204_paths.update(paths)
+      elif rule == 'isArchiveRequest':
+        assert action == 'disableCacheControl'
+        self.undesirable_archive_paths.update(paths)
 
   def finish(self):
     BaseHTTPServer.BaseHTTPRequestHandler.finish(self)
@@ -107,8 +123,9 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
 
     more_undesirable_keys = None
-    if parsed.path == '/maps/preview/log204':
-      more_undesirable_keys = ['cache-control']
+    for archive_path in self.undesirable_archive_paths:
+      if parsed.path == archive_path:
+        more_undesirable_keys = ['cache-control']
 
     return httparchive.ArchivedHttpRequest(
         self.command,
@@ -215,16 +232,13 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
       try:
         request = self.get_archived_http_request()
-        if ('client_204' in request.path or
-            'generate_204' in request.path or
-            'gen_204' in request.path or
-            'log204' in request.path or
-            'lsp.aspx' in request.path):
-          logging.debug(request.path)
-          logging.debug(request.host)
-          logging.debug('XXXX WE GOT A 204 XXXX')
-          self.send_error(204)
-          return
+        for path in self.client_204_paths:
+           if path in request.path:
+             logging.debug(request.path)
+             logging.debug(request.host)
+             logging.debug('XXXX WE GOT A 204 XXXX')
+             self.send_error(204)
+             return
         if request is None:
           self.send_error(500)
           return
@@ -291,9 +305,6 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
     self.http_archive_fetch = http_archive_fetch
     self.custom_handlers = custom_handlers
     self.use_delays = use_delays
-    self.match_rules = {'/fd/ls/l': ['DATA'], '/gen_204': ['rt','xjs']}
-    #self.match_rules = match_rules
-    self.HANDLER.match_rules = self.match_rules
     self.is_ssl = is_ssl
     self.traffic_shaping_down_bps = proxyshaper.GetBitsPerSecond(down_bandwidth)
     self.traffic_shaping_up_bps = proxyshaper.GetBitsPerSecond(up_bandwidth)
@@ -301,7 +312,18 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
     self.num_active_requests = 0
     self.total_request_time = 0
     self.protocol = protocol
-
+    self.rules = json.loads("""
+    [
+     ["isOverridePath", {"/fd/ls/l": ["DATA"], "/gen_204": ["rtr","xjs"]},
+      "ignoreParameter"],
+     ["isProxyRequest",
+      ["client_204 generate_204", "gen_204", "log204", "lsp.aspx", "configurations/pep/pipeline/"],
+      "sendError"],
+     ["isArchiveRequest", ["/maps/preview/log204"],
+      "disableCacheControl"]
+    ]
+    """)
+ 
     # Note: This message may be scraped. Do not change it.
     logging.warning(
         '%s server started on %s:%d' % (self.protocol, self.server_address[0],
