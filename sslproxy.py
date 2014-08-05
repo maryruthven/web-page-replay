@@ -16,7 +16,6 @@ class SslHandshakeHandler:
       """A SNI callback that happens during do_handshake()."""
       try:
         host = connection.get_servername()
-        logging.error('host %s', host)
         if host:
           cert_str = (
               self.server.http_archive_fetch.http_archive.get_certificate(host))
