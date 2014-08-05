@@ -16,6 +16,7 @@
 import BaseHTTPServer
 import errno
 import logging
+import re
 import socket
 import SocketServer
 import ssl
@@ -81,6 +82,7 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     host = self.headers.get('host')
     if host is None:
       logging.error('Request without host header')
+      self.send_error(500)
       return None
 
     parsed = urlparse.urlparse(self.path)
@@ -90,25 +92,49 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     full_path = '%s%s%s%s' % (parsed.path, params, query, fragment)
     path_for_matching = full_path
 
+
+    for path in self.server.paths_to_generalize:
+      groups =  re.search(path, '%s%s' % (host, full_path))
+      if groups:
+        path_for_matching = ''.join(groups.groups()[::2]) 
+        logging.info('doing replacement in %s mode: %s -> %s',
+                     ('record' if self.server.http_archive_fetch.is_record_mode
+                      else 'replay'), full_path, path_for_matching)
+        p2 = '%s%s%s%s' % (parsed.path, params,
+                           path_for_matching, fragment)
+        logging.info('compare %s %s', path_for_matching, p2)
+      groups = None
+
     # override path_for_matching if we want to ignore a parameter
     if query:
-      if self.server.match_rules and parsed.path in self.server.match_rules:
-        def okpair(x):
-          return x.split('=')[0] not in self.server.match_rules[parsed.path]
-        only_good_params = filter(okpair, query[1:].split('&'))
+      if self.server.bad_params and parsed.path in self.server.bad_params:
+        logging.error('bad param %s %s', full_path, parsed.path)
+        bad_keys = self.server.bad_params[parsed.path]
+        def is_good_key(keyEqVal):
+          key = keyEqVal.split('=')[0]
+          return key not in bad_keys
+        all_params = query[1:].split('&')
+        only_good_params = filter(is_good_key, all_params)
         query_for_matching = '?' + '&'.join(only_good_params)
         path_for_matching = '%s%s%s%s' % (parsed.path, params,
                                           query_for_matching, fragment)
         if len(path_for_matching) < len(full_path):
-          logging.debug('%s is in the match_rules keys, so ignoring params: %s',
-                        parsed.path, self.server.match_rules[parsed.path])
+          logging.debug('%s is in the bad_params keys, so ignoring params: %s',
+                        parsed.path, bad_keys)
           logging.debug('host is %s', host)
 
 
     more_undesirable_keys = None
-    for archive_path in self.server.undesirable_archive_paths:
-      if parsed.path == archive_path:
-        more_undesirable_keys = ['cache-control']
+    for path, undesirable_key in self.server.undesirable_archive_paths.items():
+      if re.match(r'%s' % path, parsed.path):
+        logging.error('undesirable path %s %s', parsed.path, full_path)
+        more_undesirable_keys = [undesirable_key]
+
+    for path in self.server.error_paths:
+      if re.match(r'%s' % path, '%s%s' % (host, full_path)):
+        logging.debug('Send 204 for %s%s', host, parsed.path)
+        self.send_error(204)
+        return None
 
     return httparchive.ArchivedHttpRequest(
         self.command,
@@ -215,15 +241,7 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
       try:
         request = self.get_archived_http_request()
-        for path in self.server.client_204_paths:
-           if path in request.path:
-             logging.debug(request.path)
-             logging.debug(request.host)
-             logging.debug('XXXX WE GOT A 204 XXXX')
-             self.send_error(204)
-             return
         if request is None:
-          self.send_error(500)
           return
         response = self.server.custom_handlers.handle(request)
         if not response:
@@ -295,39 +313,38 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
     self.num_active_requests = 0
     self.total_request_time = 0
     self.protocol = protocol
-    self.rules = rules
-    self.create_rules()
+    self.parse_rules(rules)
 
     # Note: This message may be scraped. Do not change it.
     logging.warning(
         '%s server started on %s:%d' % (self.protocol, self.server_address[0],
                                         self.server_address[1]))
 
-  def create_rules(self):
+  def parse_rules(self, rules):
     self.client_204_paths = set()
-    self.undesirable_archive_paths = set()
-    ignore_paths = set()
-    callback_paths = set()
+    self.undesirable_archive_paths = {}
+    self.bad_params = {}
+    self.error_paths = set()
+    self.paths_to_generalize = set()
+    for rule, path, action, value in rules:
+      if rule == 'isRequestPath':
+        if action == 'ignoreParameter':
+          self.bad_params[path] = value
+        elif action == 'send204':
+          for suffix in value:
+            self.error_paths.add('%s%s' % (path, suffix))
+        elif action == 'generalizePath':
+          for suffix in value:
+            new_suffix = ''
+            while suffix.count('(') > 0:
+              part_to_include, _, suffix = suffix.partition('(')
+              part_to_exclude, _, suffix = suffix.partition(')')
+              new_suffix += '(%s)(%s)' % (part_to_include, part_to_exclude)
+            new_suffix += '(%s)' % suffix
+            self.paths_to_generalize.add('%s%s' % (path, new_suffix)) 
+        elif action == 'disableCacheControl':
+          self.undesirable_archive_paths[path] = value
 
-    self.match_rules = {}
-    for rule, paths, action in self.rules:
-      if rule == "isCallbackPath":
-        assert action == "replaceCallback"
-        callback_paths.update(paths)
-      elif rule == "isIgnoredPath":
-        assert action == "ignorePath"
-        ignore_paths.update(paths)
-      elif rule == 'isOverridePath':
-        assert action == 'ignoreParameter'
-        self.match_rules = paths
-      elif rule == 'isProxyRequest':
-        assert action == 'sendError'
-        self.client_204_paths.update(paths)
-      elif rule == 'isArchiveRequest':
-        assert action == 'disableCacheControl'
-        self.undesirable_archive_paths.update(paths)
-
-    self.http_archive_fetch.setResponseMutations(callback_paths, ignore_paths)
 
 
   def cleanup(self):

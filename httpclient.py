@@ -467,11 +467,15 @@ class ReplayHttpArchiveFetch(object):
 
 def mutate_response(request, response, callback_paths, ignore_paths):
   for callback_path in callback_paths:
-    if re.match(r'%s' % callback_path, request.full_path):
+    if re.match(r'%s' % callback_path, '%s%s' % (request.host, request.full_path)):
       logging.info('doing callback replacement')
-      newkey = request.full_path.rsplit('callback=_callbacks_._', 1)[1]
+      logging.info(request.full_path)
+
+      newkey = request.full_path.rsplit('callback=_xdc_._', 1)[1]
+      logging.error(newkey)
       resp_text = response.get_response_as_text()
-      oldkey = re.search('_callbacks_._(.{9})', resp_text).group(1)
+      logging.error('text %s', resp_text)
+      oldkey = re.search('_xdc_._(.{9})', resp_text).group(1)
       logging.info("oldkey = %s", oldkey)
       new_resp_text = resp_text.replace(oldkey, newkey)
       logging.info('new_resp_text: %s', new_resp_text)
@@ -510,7 +514,7 @@ class ControllableHttpArchiveFetch(object):
 
   def __init__(self, http_archive, real_dns_lookup,
                inject_script, use_diff_on_unknown_requests,
-               use_record_mode, cache_misses, use_closest_match,
+               use_record_mode, rules, cache_misses, use_closest_match,
                scramble_images):
     """Initialize HttpArchiveFetch.
 
@@ -537,8 +541,21 @@ class ControllableHttpArchiveFetch(object):
       self.SetRecordMode()
     else:
       self.SetReplayMode()
+    self.parse_rules(rules)
 
-  def setResponseMutations(self, callback_paths, ignore_paths):
+  def parse_rules(self, rules):
+    ignore_paths = set()
+    callback_paths = set()
+
+    for rule, paths, action, values in rules:
+      if rule == "isFetchPath":
+        if action == "replaceCallback":
+          for value in values:
+            callback_paths.add('%s%s' % (paths, value))
+            logging.error(callback_paths)
+        elif action == "ignorePath":
+          ignore_paths.update(paths)
+
     self.replay_fetch.callback_paths = callback_paths
     self.replay_fetch.ignore_paths = ignore_paths
     self.record_fetch.callback_paths = callback_paths

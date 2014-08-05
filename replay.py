@@ -131,10 +131,45 @@ def AddWebProxy(server_manager, options, host, real_dns_lookup, http_archive,
         certfile=options.https_root_ca_cert_path)
   else:
     custom_handlers.add_server_manager_handler(server_manager)
+    json_rules = json.loads("""
+    [
+     ["isFetchPath", "mts0.google.com",
+      "replaceCallback",  ["/vt.*callback.*", "/maps/vt.*callback.*"]],
+     ["isFetchPath", ["/signorethis", "/searchignorethis"],
+      "ignorePath", ""],
+     ["isRequestPath", "gg.google.com",
+      "generalizePath",  ["/csi.*jsv(.*)"]],
+     ["isRequestPath", "mts0.google.com",
+      "generalizePath",  ["/vt.*callback=_xdc_._(.{9})"]],
+     ["isRequestPath", "maps.gstatic.com",
+      "generalizePath",  ["(.*)/mapfiles/transparent.png", "/mapfiles(.*)/shadow50.png",
+      "/mapfiles/markers2/red(_grow)_markers_A_J2.png"]],
+     ["isRequestPath", "/fd/ls/l",
+      "ignoreParameter", ["DATA"]],
+     ["isRequestPath", "/gen_204", 
+      "ignoreParameter", ["rtr","xjs"]],
+     ["isRequestPath", "clients1.google.com",
+      "send204", ["/generate_204.*"]],
+     ["isRequestPath", ".*apple.*",
+      "send204", [""]],
+     ["isRequestPath", ".*.metric.gstatic.com",
+      "send204", ["/gen_204.*"]],
+     ["isRequestPath", "www.bing.com",
+      "send204", ["/.*lsp.aspx"]],
+     ["isRequestPath", "maptiles-dogfood..sandbox.google.com",
+      "send204", [""]],
+     ["isRequestPath", ".*.google.com",
+      "send204", ["/client_204.*", "/.*gen_204.*", "/log204.*"]],
+     ["isRequestPath", "configuration.apple.com", 
+      "send204", ["/configurations/pep/pipeline/.*"]],
+     ["isRequestPath", "/maps/preview/log204",
+      "disableCacheControl", "cache-control"]
+    ]
+    """)
     archive_fetch = httpclient.ControllableHttpArchiveFetch(
         http_archive, real_dns_lookup,
         inject_script,
-        options.diff_unknown_requests, options.record,
+        options.diff_unknown_requests, options.record, json_rules,
         cache_misses=cache_misses, use_closest_match=options.use_closest_match,
         scramble_images=options.scramble_images)
     server_manager.AppendRecordCallback(archive_fetch.SetRecordMode)
@@ -143,21 +178,6 @@ def AddWebProxy(server_manager, options, host, real_dns_lookup, http_archive,
       match_rules_dict = ast.literal_eval(options.match_rules.strip())
     else:
       match_rules_dict = None
-    json_rules = json.loads("""
-    [
-     ["isCallbackPath", ["/vt.*callbacks.*", "/maps/vt.*callbacks.*"],
-      "replaceCallback"],
-     ["isIgnoredPath", ["/signorethis", "/searchignorethis"],
-      "ignorePath"],
-     ["isOverridePath", {"/fd/ls/l": ["DATA"], "/gen_204": ["rtr","xjs"]},
-      "ignoreParameter"],
-     ["isProxyRequest",
-      ["client_204 generate_204", "gen_204", "log204", "lsp.aspx", "configurations/pep/pipeline/"],
-      "sendError"],
-     ["isArchiveRequest", ["/maps/preview/log204"],
-      "disableCacheControl"]
-    ]
-    """)
     server_manager.Append(
         httpproxy.HttpProxyServer,
         archive_fetch, custom_handlers, host=host, port=options.port,
@@ -565,8 +585,9 @@ def GetOptionParser():
       action='store',
       dest='match_rules',
       help='For hackage.')
-  harness_group.add_option('--should_generate_certs', default=False,
+  harness_group.add_option('--generate_certs', default=False,
       action='store_true',
+      dest='should_generate_certs',
       help='Use OpenSSL to generate certificate files for requested hosts.')
   harness_group.add_option('--no-admin-check', default=True,
       action='store_false',

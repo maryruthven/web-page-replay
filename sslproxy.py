@@ -16,6 +16,7 @@ class SslHandshakeHandler:
       """A SNI callback that happens during do_handshake()."""
       try:
         host = connection.get_servername()
+        logging.error('host %s', host)
         if host:
           cert_str = (
               self.server.http_archive_fetch.http_archive.get_certificate(host))
@@ -28,20 +29,31 @@ class SslHandshakeHandler:
         # else: fail with 'no shared cipher'
       except Exception, e:
         # Do not leak any exceptions or else openssl crashes.
-        logging.error('Exception in SNI handler', e)
+        logging.error('Exception in SNI handler %s', e)
 
     context.set_tlsext_servername_callback(handle_servername)
     self.connection = certutils.get_ssl_connection(context, self.connection)
     self.connection.set_accept_state()
     try:
       self.connection.do_handshake()
+    except certutils.SysCallError, e:
+      if e.args[1] == 'Unexpected EOF':
+        return ''
+      raise
+    except certutils.ZeroReturnError:
+      return ''
     except certutils.Error, v:
       host = self.connection.get_servername()
       if not host:
         logging.error('Dropping request without SNI')
         return ''
-      raise certutils.Error('SSL handshake error %s: %s' % (host, str(v)))
+      raise
 
+    #except certutils.ZeroReturnError:
+    #  return ''
+    #except certutils.SysCallError, v:
+    #  if v[1] == 'Unexpected EOF':
+    #    return ''
     # Re-wrap the read/write streams with our new connection.
     self.rfile = socket._fileobject(self.connection, 'rb', self.rbufsize,
                                     close=False)

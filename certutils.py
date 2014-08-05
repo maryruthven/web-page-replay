@@ -138,15 +138,17 @@ def get_host_cert(host, port=443):
   try:
     connection.connect((host, port))
     connection.send('')
-  except SSL.SysCallError:
+  except SSL.SysCallError, e:
     pass
   except socket.gaierror:
     logging.debug('Host name is not valid')
   finally:
+    logging.error('closing')
     connection.shutdown()
     connection.close()
   if len(host_certs) > 0:
     return _dump_cert(host_certs[-1])
+  logging.warning('Did not get SNI from server')
   return ''
 
 

@@ -176,14 +176,7 @@ class CustomHandlers(object):
       Otherwise, None.
     """
     command = url_suffix
-    if command == 'get-cert':
-      cert_file = None
-      self.server_manager.CreateCert(cert_file)
-      self.server_manager.SetCert(cert_file)
-    elif command == 'post-cert':
-      cert_file = None
-      self.server_manager.SetCert(cert_file)
-    elif command == 'record':
+    if command == 'record':
       self.server_manager.SetRecordMode()
       return SimpleResponse(200)
     elif command == 'replay':
