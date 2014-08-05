@@ -26,7 +26,6 @@ import httparchive
 import platformsettings
 import script_injector
 
-
 # PIL isn't always available, but we still want to be able to run without
 # the image scrambling functionality in this case.
 try:
@@ -383,7 +382,7 @@ class RecordHttpArchiveFetch(object):
     if request in self.http_archive:
       logging.debug('Repeated request found: %s', request)
       response = self.http_archive[request]
-      mutate_response(request, response, self.callback_paths, self.ignore_paths)
+      mutate_response(request, response, self.callback_paths)
     else:
       response = self.real_http_fetch(request)
       if response is None:
@@ -434,7 +433,7 @@ class ReplayHttpArchiveFetch(object):
       return self.real_http_fetch(request)
 
     response = self.http_archive.get(request)
-    mutate_response(request, response, self.callback_paths, self.ignore_paths)
+    mutate_response(request, response, self.callback_paths)
 
     if self.use_closest_match and not response:
       closest_request = self.http_archive.find_closest_request(
@@ -465,7 +464,7 @@ class ReplayHttpArchiveFetch(object):
         response = _ScrambleImages(response)
     return response
 
-def mutate_response(request, response, callback_paths, ignore_paths):
+def mutate_response(request, response, callback_paths):
   for callback_path in callback_paths:
     if re.match(r'%s' % callback_path, '%s%s' % (request.host,
                                                  request.full_path)):
@@ -479,34 +478,6 @@ def mutate_response(request, response, callback_paths, ignore_paths):
       new_resp_text = resp_text.replace(oldkey, newkey)
       logging.info('new_resp_text: %s', new_resp_text)
       response.set_response_from_text(new_resp_text)
-
-  if request.path in ignore_paths:
-    logging.info('matched! %s', request.path)
-    resp_text = response.get_response_as_text()
-    logging.info('len resp = %d', len(resp_text))
-    query_parts = request.full_path.split('&')
-
-    ech_part = None
-    psi_part = None
-    for part in query_parts:
-      if part.startswith('ech='):
-        ech_part = part
-      elif part.startswith('psi='):
-        psi_part = part
-
-    logging.info('ech_part = %s', ech_part)
-    logging.info('psi_part = %s', psi_part)
-
-    old_ech_stuff = re.search('ech=\d+', resp_text).group(0)
-    logging.info('old_ech_stuff = %s', old_ech_stuff)
-
-    old_psi_stuff = re.search('psi=[A-Za-z0-9_\.]+', resp_text).group(0)
-    logging.info('old_psi_stuff = %s', old_psi_stuff)
-
-    replaced1 = resp_text.replace(old_ech_stuff, ech_part)
-    replaced2 = replaced1.replace(old_psi_stuff, psi_part)
-    logging.info('len resp2 = %d', len(replaced2))
-    response.set_response_from_text(replaced2)
 
 class ControllableHttpArchiveFetch(object):
   """Controllable fetch function that can swap between record and replay."""
@@ -543,7 +514,6 @@ class ControllableHttpArchiveFetch(object):
     self.parse_rules(rules)
 
   def parse_rules(self, rules):
-    ignore_paths = set()
     callback_paths = set()
 
     for rule, paths, action, values in rules:
@@ -552,13 +522,9 @@ class ControllableHttpArchiveFetch(object):
           for value in values:
             callback_paths.add('%s%s' % (paths, value))
             logging.error(callback_paths)
-        elif action == "ignorePath":
-          ignore_paths.update(paths)
 
     self.replay_fetch.callback_paths = callback_paths
-    self.replay_fetch.ignore_paths = ignore_paths
     self.record_fetch.callback_paths = callback_paths
-    self.record_fetch.ignore_paths = ignore_paths
 
   def SetRecordMode(self):
     self.fetch = self.record_fetch

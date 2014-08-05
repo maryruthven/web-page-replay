@@ -95,30 +95,10 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     for path in self.server.paths_to_generalize:
       groups =  re.search(path, '%s%s' % (host, path_for_matching))
       if groups:
-        path_for_matching = ''.join(groups.groups()[::2])
+        path_for_matching = ''.join(groups.groups()[::2]) 
         logging.info('doing replacement in %s mode: %s -> %s',
                      ('record' if self.server.http_archive_fetch.is_record_mode
                       else 'replay'), full_path, path_for_matching)
-      groups = None
-
-    # override path_for_matching if we want to ignore a parameter
-    if query:
-      if self.server.bad_params and parsed.path in self.server.bad_params:
-        logging.error('bad param %s %s', full_path, parsed.path)
-        bad_keys = self.server.bad_params[parsed.path]
-        def is_good_key(keyEqVal):
-          key = keyEqVal.split('=')[0]
-          return key not in bad_keys
-        all_params = query[1:].split('&')
-        only_good_params = filter(is_good_key, all_params)
-        query_for_matching = '?' + '&'.join(only_good_params)
-        path_for_matching = '%s%s%s%s' % (parsed.path, params,
-                                          query_for_matching, fragment)
-        if len(path_for_matching) < len(full_path):
-          logging.debug('%s is in the bad_params keys, so ignoring params: %s',
-                        parsed.path, bad_keys)
-          logging.debug('host is %s', host)
-
 
     more_undesirable_keys = None
     for path, undesirable_key in self.server.undesirable_archive_paths.items():
@@ -337,7 +317,7 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
               part_to_exclude, _, suffix = suffix.partition(')')
               new_suffix += '(%s)(%s)' % (part_to_include, part_to_exclude)
             new_suffix += '(%s)' % suffix
-            self.paths_to_generalize.add('%s%s' % (path, new_suffix))
+            self.paths_to_generalize.add('%s%s' % (path, new_suffix)) 
         elif action == 'disableCacheControl':
           self.undesirable_archive_paths[path] = value
 
@@ -365,13 +345,6 @@ class HttpsProxyServer(HttpProxyServer):
     HttpProxyServer.__init__(self, http_archive_fetch, custom_handlers,
                              is_ssl=True, protocol='HTTPS', **kwargs)
     self.http_archive_fetch.http_archive.set_root_cert(https_root_ca_cert_path)
-
-  def cleanup(self):
-    try:
-      self.shutdown()
-    except KeyboardInterrupt:
-      pass
-
 
 class SingleCertHttpsProxyServer(HttpProxyServer):
   """SSL server."""
