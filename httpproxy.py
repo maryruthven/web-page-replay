@@ -95,7 +95,7 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     for path in self.server.paths_to_generalize:
       groups =  re.search(path, '%s%s' % (host, path_for_matching))
       if groups:
-        path_for_matching = ''.join(groups.groups()[::2]) 
+        path_for_matching = ''.join(groups.groups()[::2])
         logging.info('doing replacement in %s mode: %s -> %s',
                      ('record' if self.server.http_archive_fetch.is_record_mode
                       else 'replay'), full_path, path_for_matching)
@@ -317,7 +317,7 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
               part_to_exclude, _, suffix = suffix.partition(')')
               new_suffix += '(%s)(%s)' % (part_to_include, part_to_exclude)
             new_suffix += '(%s)' % suffix
-            self.paths_to_generalize.add('%s%s' % (path, new_suffix)) 
+            self.paths_to_generalize.add('%s%s' % (path, new_suffix))
         elif action == 'disableCacheControl':
           self.undesirable_archive_paths[path] = value
 
@@ -345,6 +345,7 @@ class HttpsProxyServer(HttpProxyServer):
     HttpProxyServer.__init__(self, http_archive_fetch, custom_handlers,
                              is_ssl=True, protocol='HTTPS', **kwargs)
     self.http_archive_fetch.http_archive.set_root_cert(https_root_ca_cert_path)
+
 
 class SingleCertHttpsProxyServer(HttpProxyServer):
   """SSL server."""
