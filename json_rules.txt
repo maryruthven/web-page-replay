@@ -27,4 +27,3 @@
  ["isRequestPath", ["/maps/preview/log204", "cache-control"],
   "removeHeader"]
 ]
-

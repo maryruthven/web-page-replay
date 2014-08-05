@@ -547,10 +547,9 @@ def GetOptionParser():
       help='Do not setup an SSL proxy.')
   harness_group.add_option('--json_rules', default='json_rules.txt',
       action='store',
-      help='For hacking paths.')
-  harness_group.add_option('--generate_certs', default=False,
+      help='Path of file containing json rules to modify urls.')
+  harness_group.add_option('--should_generate_certs', default=False,
       action='store_true',
-      dest='should_generate_certs',
       help='Use OpenSSL to generate certificate files for requested hosts.')
   harness_group.add_option('--no-admin-check', default=True,
       action='store_false',
