@@ -12,8 +12,6 @@
   "generalizePath"],
  ["isRequestPath", ["clients1.google.com", ["/generate_204.*"]],
   "send204"],
- ["isRequestPath", [".*apple.*", [""]],
-  "send204"],
  ["isRequestPath", [".*.metric.gstatic.com", ["/gen_204.*"]],
   "send204"],
  ["isRequestPath", ["www.bing.com", ["/.*lsp.aspx"]],
