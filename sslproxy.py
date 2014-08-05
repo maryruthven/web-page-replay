@@ -47,13 +47,9 @@ class SslHandshakeHandler:
       if not host:
         logging.error('Dropping request without SNI')
         return ''
+      logging.error('SSL handshake error')
       raise
 
-    #except certutils.ZeroReturnError:
-    #  return ''
-    #except certutils.SysCallError, v:
-    #  if v[1] == 'Unexpected EOF':
-    #    return ''
     # Re-wrap the read/write streams with our new connection.
     self.rfile = socket._fileobject(self.connection, 'rb', self.rbufsize,
                                     close=False)
