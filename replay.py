@@ -130,43 +130,9 @@ def AddWebProxy(server_manager, options, host, real_dns_lookup, http_archive,
         certfile=options.https_root_ca_cert_path)
   else:
     custom_handlers.add_server_manager_handler(server_manager)
-    json_rules = json.loads("""
-    [
-     ["isFetchPath", "mts0.google.com",
-      "replaceCallback",  ["/vt.*callback.*", "/maps/vt.*callback.*"]],
-     ["isRequestPath", "gg.google.com",
-      "generalizePath",  ["/csi.*jsv(.*)"]],
-     ["isRequestPath", "mts0.google.com",
-      "generalizePath",  ["/vt.*callback=_xdc_._(.{9})"]],
-     ["isRequestPath", "maps.gstatic.com",
-      "generalizePath",  ["(.*)/mapfiles/transparent.png", "/mapfiles(.*)/shadow50.png",
-      "/mapfiles/markers2/red(_grow)_markers_A_J2.png"]],
-     ["isRequestPath", "www.google.com",
-      "generalizePath", ["/gen_204.*(&rtr=[^&]*)&?.*","/gen_204.*(&xjs=[^&]*)&?.*"]],
-     ["isRequestPath", "/fd/ls/l",
-      "ignoreParameter", ["DATA"]],
-     ["isRequestPath", "/gen_204",
-      "ignoreParameter", ["rtr","xjs"]],
-     ["isRequestPath", "clients1.google.com",
-      "send204", ["/generate_204.*"]],
-     ["isRequestPath", ".*apple.*",
-      "send204", [""]],
-     ["isRequestPath", ".*.metric.gstatic.com",
-      "send204", ["/gen_204.*"]],
-     ["isRequestPath", "www.bing.com",
-      "send204", ["/.*lsp.aspx"]],
-     ["isRequestPath", "maptiles-dogfood..sandbox.google.com",
-      "send204", [""]],
-     ["isRequestPath", ".*.google.com",
-      "send204", ["/client_204.*", "/.*gen_204.*", "/log204.*"]],
-     ["isRequestPath", "configuration.apple.com",
-      "send204", ["/configurations/pep/pipeline/.*"]],
-     ["isRequestPath", "/maps/preview/log204",
-      "disableCacheControl", "cache-control"]
-    ]
-    """)
-    if self.json_rules:
-      json_rules = json.loads(self.json_rules)
+    json_rules = None
+    if options.json_rules:
+      json_rules = json.load(options.json_rules)
     archive_fetch = httpclient.ControllableHttpArchiveFetch(
         http_archive, real_dns_lookup,
         inject_script,
@@ -580,7 +546,7 @@ def GetOptionParser():
       help='Do not setup an SSL proxy.')
   harness_group.add_option('--json_rules', default=None,
       action='store',
-      help='For hacking paths.')
+      help='Path of file containing json rules to modify urls.')
   harness_group.add_option('--should_generate_certs', default=False,
       action='store_true',
       help='Use OpenSSL to generate certificate files for requested hosts.')
