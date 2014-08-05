@@ -467,14 +467,13 @@ class ReplayHttpArchiveFetch(object):
 
 def mutate_response(request, response, callback_paths, ignore_paths):
   for callback_path in callback_paths:
-    if re.match(r'%s' % callback_path, '%s%s' % (request.host, request.full_path)):
+    if re.match(r'%s' % callback_path, '%s%s' % (request.host,
+                                                 request.full_path)):
       logging.info('doing callback replacement')
       logging.info(request.full_path)
 
       newkey = request.full_path.rsplit('callback=_xdc_._', 1)[1]
-      logging.error(newkey)
       resp_text = response.get_response_as_text()
-      logging.error('text %s', resp_text)
       oldkey = re.search('_xdc_._(.{9})', resp_text).group(1)
       logging.info("oldkey = %s", oldkey)
       new_resp_text = resp_text.replace(oldkey, newkey)

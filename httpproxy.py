@@ -92,17 +92,13 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     full_path = '%s%s%s%s' % (parsed.path, params, query, fragment)
     path_for_matching = full_path
 
-
     for path in self.server.paths_to_generalize:
-      groups =  re.search(path, '%s%s' % (host, full_path))
+      groups =  re.search(path, '%s%s' % (host, path_for_matching))
       if groups:
-        path_for_matching = ''.join(groups.groups()[::2]) 
+        path_for_matching = ''.join(groups.groups()[::2])
         logging.info('doing replacement in %s mode: %s -> %s',
                      ('record' if self.server.http_archive_fetch.is_record_mode
                       else 'replay'), full_path, path_for_matching)
-        p2 = '%s%s%s%s' % (parsed.path, params,
-                           path_for_matching, fragment)
-        logging.info('compare %s %s', path_for_matching, p2)
       groups = None
 
     # override path_for_matching if we want to ignore a parameter
@@ -341,7 +337,7 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
               part_to_exclude, _, suffix = suffix.partition(')')
               new_suffix += '(%s)(%s)' % (part_to_include, part_to_exclude)
             new_suffix += '(%s)' % suffix
-            self.paths_to_generalize.add('%s%s' % (path, new_suffix)) 
+            self.paths_to_generalize.add('%s%s' % (path, new_suffix))
         elif action == 'disableCacheControl':
           self.undesirable_archive_paths[path] = value
 

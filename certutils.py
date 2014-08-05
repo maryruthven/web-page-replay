@@ -138,12 +138,11 @@ def get_host_cert(host, port=443):
   try:
     connection.connect((host, port))
     connection.send('')
-  except SSL.SysCallError, e:
+  except SSL.SysCallError:
     pass
   except socket.gaierror:
     logging.debug('Host name is not valid')
   finally:
-    logging.error('closing')
     connection.shutdown()
     connection.close()
   if len(host_certs) > 0:
