@@ -39,7 +39,6 @@ Network simulation examples:
   $ sudo ./replay.py --packet_loss_rate=0.01 archive.wpr
 """
 
-import ast
 import json
 import logging
 import optparse
@@ -166,6 +165,8 @@ def AddWebProxy(server_manager, options, host, real_dns_lookup, http_archive,
       "disableCacheControl", "cache-control"]
     ]
     """)
+    if self.json_rules:
+      json_rules = json.loads(self.json_rules)
     archive_fetch = httpclient.ControllableHttpArchiveFetch(
         http_archive, real_dns_lookup,
         inject_script,
@@ -174,10 +175,6 @@ def AddWebProxy(server_manager, options, host, real_dns_lookup, http_archive,
         scramble_images=options.scramble_images)
     server_manager.AppendRecordCallback(archive_fetch.SetRecordMode)
     server_manager.AppendReplayCallback(archive_fetch.SetReplayMode)
-    if options.match_rules:
-      match_rules_dict = ast.literal_eval(options.match_rules.strip())
-    else:
-      match_rules_dict = None
     server_manager.Append(
         httpproxy.HttpProxyServer,
         archive_fetch, custom_handlers, host=host, port=options.port,
@@ -581,10 +578,9 @@ def GetOptionParser():
       action='store_false',
       dest='ssl',
       help='Do not setup an SSL proxy.')
-  harness_group.add_option('--match_rules', default=None,
+  harness_group.add_option('--json_rules', default=None,
       action='store',
-      dest='match_rules',
-      help='For hackage.')
+      help='For hacking paths.')
   harness_group.add_option('--should_generate_certs', default=False,
       action='store_true',
       help='Use OpenSSL to generate certificate files for requested hosts.')

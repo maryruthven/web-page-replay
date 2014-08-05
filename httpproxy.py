@@ -259,7 +259,7 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
   daemon_threads = True
 
   def __init__(self, http_archive_fetch, custom_handlers,
-               host='localhost', port=80, rules=[], use_delays=False,
+               host='localhost', port=80, rules=None, use_delays=False,
                is_ssl=False, protocol='HTTP', down_bandwidth='0',
                up_bandwidth='0', delay_ms='0'):
     """Start HTTP server.
@@ -302,26 +302,25 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
     self.bad_params = {}
     self.error_paths = set()
     self.paths_to_generalize = set()
-    for rule, path, action, value in rules:
-      if rule == 'isRequestPath':
-        if action == 'ignoreParameter':
-          self.bad_params[path] = value
-        elif action == 'send204':
-          for suffix in value:
-            self.error_paths.add('%s%s' % (path, suffix))
-        elif action == 'generalizePath':
-          for suffix in value:
-            new_suffix = ''
-            while suffix.count('(') > 0:
-              part_to_include, _, suffix = suffix.partition('(')
-              part_to_exclude, _, suffix = suffix.partition(')')
-              new_suffix += '(%s)(%s)' % (part_to_include, part_to_exclude)
-            new_suffix += '(%s)' % suffix
-            self.paths_to_generalize.add('%s%s' % (path, new_suffix))
-        elif action == 'disableCacheControl':
-          self.undesirable_archive_paths[path] = value
-
-
+    if rules:
+      for rule, path, action, value in rules:
+        if rule == 'isRequestPath':
+          if action == 'ignoreParameter':
+            self.bad_params[path] = value
+          elif action == 'send204':
+            for suffix in value:
+              self.error_paths.add('%s%s' % (path, suffix))
+          elif action == 'generalizePath':
+            for suffix in value:
+              new_suffix = ''
+              while suffix.count('(') > 0:
+                part_to_include, _, suffix = suffix.partition('(')
+                part_to_exclude, _, suffix = suffix.partition(')')
+                new_suffix += '(%s)(%s)' % (part_to_include, part_to_exclude)
+              new_suffix += '(%s)' % suffix
+              self.paths_to_generalize.add('%s%s' % (path, new_suffix))
+          elif action == 'disableCacheControl':
+            self.undesirable_archive_paths[path] = value
 
   def cleanup(self):
     try:

@@ -19,7 +19,7 @@
   - Return the given RESPONSE_CODE.
 /web-page-replay-post-image-[FILENAME]
   - Save the posted image to local disk.
-/web-page-replay-command-[cert|record|replay|status]
+/web-page-replay-command-[record|replay|status]
   - Optional. Enable by calling custom_handlers.add_server_manager_handler(...).
   - Change the server mode to either record or replay.
     + When switching to record, the http_archive is cleared.
