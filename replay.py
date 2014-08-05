@@ -132,7 +132,8 @@ def AddWebProxy(server_manager, options, host, real_dns_lookup, http_archive,
     custom_handlers.add_server_manager_handler(server_manager)
     json_rules = None
     if options.json_rules:
-      json_rules = json.load(options.json_rules)
+      with open(options.json_rules, 'r') as json_file:
+        json_rules = json.load(json_file)
     archive_fetch = httpclient.ControllableHttpArchiveFetch(
         http_archive, real_dns_lookup,
         inject_script,
@@ -544,11 +545,12 @@ def GetOptionParser():
       action='store_false',
       dest='ssl',
       help='Do not setup an SSL proxy.')
-  harness_group.add_option('--json_rules', default=None,
+  harness_group.add_option('--json_rules', default='json_rules.txt',
       action='store',
-      help='Path of file containing json rules to modify urls.')
-  harness_group.add_option('--should_generate_certs', default=False,
+      help='For hacking paths.')
+  harness_group.add_option('--generate_certs', default=False,
       action='store_true',
+      dest='should_generate_certs',
       help='Use OpenSSL to generate certificate files for requested hosts.')
   harness_group.add_option('--no-admin-check', default=True,
       action='store_false',

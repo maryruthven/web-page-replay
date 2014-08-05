@@ -101,7 +101,7 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                       else 'replay'), full_path, path_for_matching)
 
     more_undesirable_keys = None
-    for path, undesirable_key in self.server.undesirable_archive_paths.items():
+    for path, undesirable_key in self.server.undesirable_headers.items():
       if re.match(r'%s' % path, parsed.path):
         logging.error('undesirable path %s %s', parsed.path, full_path)
         more_undesirable_keys = [undesirable_key]
@@ -298,29 +298,30 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
 
   def parse_rules(self, rules):
     self.client_204_paths = set()
-    self.undesirable_archive_paths = {}
-    self.bad_params = {}
+    self.undesirable_headers = {}
     self.error_paths = set()
     self.paths_to_generalize = set()
     if rules:
-      for rule, path, action, value in rules:
+      for rule, url, action in rules:
         if rule == 'isRequestPath':
-          if action == 'ignoreParameter':
-            self.bad_params[path] = value
-          elif action == 'send204':
-            for suffix in value:
-              self.error_paths.add('%s%s' % (path, suffix))
+          if action == 'send204':
+            host, paths = url
+            for path in paths:
+              self.error_paths.add('%s%s' % (host, path))
           elif action == 'generalizePath':
-            for suffix in value:
-              new_suffix = ''
-              while suffix.count('(') > 0:
-                part_to_include, _, suffix = suffix.partition('(')
-                part_to_exclude, _, suffix = suffix.partition(')')
-                new_suffix += '(%s)(%s)' % (part_to_include, part_to_exclude)
-              new_suffix += '(%s)' % suffix
-              self.paths_to_generalize.add('%s%s' % (path, new_suffix))
-          elif action == 'disableCacheControl':
-            self.undesirable_archive_paths[path] = value
+            host, paths = url
+            for path in paths:
+              assert path.count('(') == path.count(')')
+              new_path = ''
+              while path.count('(') > 0:
+                part_to_include, _, path = path.partition('(')
+                part_to_exclude, _, path = path.partition(')')
+                new_path += '(%s)(%s)' % (part_to_include, part_to_exclude)
+              new_path += '(%s)' % path
+              self.paths_to_generalize.add('%s%s' % (path, new_path))
+          elif action == 'removeHeader':
+            path, header = url
+            self.undesirable_headers[path] = header
 
   def cleanup(self):
     try:
