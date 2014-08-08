@@ -147,7 +147,7 @@ def get_host_cert(host, port=443):
     connection.shutdown()
     connection.close()
   if not host_certs:
-    logging.warning('Did not get SNI %s:%s', host, port)
+    logging.warning('Did not get SNI from %s:%s', host, port)
     return ''
   return _dump_cert(host_certs[-1])
 

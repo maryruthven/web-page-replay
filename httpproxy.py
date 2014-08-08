@@ -93,9 +93,15 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     path_for_matching = full_path
 
     for path in self.server.paths_to_generalize:
-      groups =  re.search(path, '%s%s' % (host, path_for_matching))
+      groups =  path.match('%s%s' % (host, path_for_matching))
       if groups:
-        path_for_matching = ''.join(groups.groups()[::2])
+        start_include = 0
+        new_path = ''
+        for i in xrange(groups.lastindex):
+          start_group, end_group = groups.span(i+1)
+          new_path += path_for_matching[start_include:start_group]
+          start_include = end_group
+        path_for_matching = new_path + path_for_matching[start_include::]
         logging.info('doing replacement in %s mode: %s -> %s',
                      ('record' if self.server.http_archive_fetch.is_record_mode
                       else 'replay'), full_path, path_for_matching)
@@ -103,7 +109,6 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     more_undesirable_keys = None
     for path, undesirable_key in self.server.undesirable_headers.items():
       if re.match(r'%s' % path, parsed.path):
-        logging.error('undesirable path %s %s', parsed.path, full_path)
         more_undesirable_keys = [undesirable_key]
 
     for path in self.server.error_paths:
@@ -301,27 +306,21 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
     self.undesirable_headers = {}
     self.error_paths = set()
     self.paths_to_generalize = set()
-    if rules:
-      for rule, url, action in rules:
-        if rule == 'isRequestPath':
-          if action == 'send204':
-            host, paths = url
-            for path in paths:
-              self.error_paths.add('%s%s' % (host, path))
-          elif action == 'generalizePath':
-            host, paths = url
-            for path in paths:
-              assert path.count('(') == path.count(')')
-              new_path = ''
-              while path.count('(') > 0:
-                part_to_include, _, path = path.partition('(')
-                part_to_exclude, _, path = path.partition(')')
-                new_path += '(%s)(%s)' % (part_to_include, part_to_exclude)
-              new_path += '(%s)' % path
-              self.paths_to_generalize.add('%s%s' % (path, new_path))
-          elif action == 'removeHeader':
-            path, header = url
-            self.undesirable_headers[path] = header
+    for predicate, predicate_args, action in rules:
+      if predicate == 'isRequestPath':
+        if action == 'send204':
+          host, paths = predicate_args
+          for path in paths:
+            self.error_paths.add('%s%s' % (host, path))
+        elif action == 'generalizePath':
+          host, paths = predicate_args
+          for path in paths:
+            if re.search('\([^\)]?\(', path):
+              raise ValueError('Invalid path for matching %s', path)
+            self.paths_to_generalize.add(re.compile('%s%s' % (host,path)))
+        elif action == 'removeHeader':
+          path, header = predicate_args
+          self.undesirable_headers[path] = header
 
   def cleanup(self):
     try:
