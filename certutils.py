@@ -146,10 +146,10 @@ def get_host_cert(host, port=443):
   finally:
     connection.shutdown()
     connection.close()
-  if len(host_certs) > 0:
-    return _dump_cert(host_certs[-1])
-  logging.warning('Did not get SNI from server')
-  return ''
+  if not host_certs:
+    logging.warning('Did not get SNI %s:%s', host, port)
+    return ''
+  return _dump_cert(host_certs[-1])
 
 
 def write_dummy_ca_cert(ca_cert_str, key_str, cert_path):

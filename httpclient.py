@@ -465,9 +465,8 @@ class ReplayHttpArchiveFetch(object):
     return response
 
 def mutate_response(request, response, callback_paths):
-  for callback_path in callback_paths:
-    if re.match(r'%s' % callback_path, '%s%s' % (request.host,
-                                                 request.full_path)):
+  for callback_path_re in callback_paths:
+    if callback_path_re.match('%s%s' % (request.host, request.full_path)):
       logging.info('doing callback replacement')
       logging.info(request.full_path)
 
@@ -495,6 +494,7 @@ class ControllableHttpArchiveFetch(object):
       use_diff_on_unknown_requests: If True, log unknown requests
         with a diff to requests that look similar.
       use_record_mode: If True, start in server in record mode.
+      rules: list of paths identifying callbacks to replace.
       cache_misses: Instance of CacheMissArchive.
       use_closest_match: If True, on replay mode, serve the closest match
         in the archive instead of giving a 404.
@@ -515,13 +515,12 @@ class ControllableHttpArchiveFetch(object):
 
   def parse_rules(self, rules):
     callback_paths = set()
-    if rules:
-      for rule, url, action in rules:
-        if rule == "isFetchPath":
-          if action == "replaceCallback":
-            host, paths = url
-            for path in paths:
-              callback_paths.add('%s%s' % (host, path))
+    for rule, url, action in rules:
+      if rule == "isFetchPath":
+        if action == "replaceCallback":
+          host, paths = url
+          for path in paths:
+            callback_paths.add(re.compile('%s%s' % (host, path)))
 
     self.replay_fetch.callback_paths = callback_paths
     self.record_fetch.callback_paths = callback_paths

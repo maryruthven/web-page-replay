@@ -474,7 +474,9 @@ class ArchivedHttpRequest(object):
           the URL (e.g. '/search?q=dogs').
       request_body: a request body string for a POST or None.
       headers: {key: value, ...} where key and value are strings.
-      is_ssl: a boolean which is True if request is make via SSL.
+      is_ssl: True if request is made via SSL.
+      path_for_matching: modified request path to use for matching requests.
+      more_undesirable_keys: A dictionary of headers to exclude.
     """
     self.command = command
     self.host = host
@@ -485,8 +487,7 @@ class ArchivedHttpRequest(object):
     self.is_ssl = is_ssl
     self.trimmed_headers = self._TrimHeaders(headers, more_undesirable_keys)
     self.formatted_request = self._GetFormattedRequest()
-    self.path_for_matching = (
-       path_for_matching if path_for_matching else full_path)
+    self.path_for_matching = (path_for_matching or full_path)
 
   def __str__(self):
     scheme = 'https' if self.is_ssl else 'http'

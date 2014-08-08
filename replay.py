@@ -130,7 +130,7 @@ def AddWebProxy(server_manager, options, host, real_dns_lookup, http_archive,
         certfile=options.https_root_ca_cert_path)
   else:
     custom_handlers.add_server_manager_handler(server_manager)
-    json_rules = None
+    json_rules = []
     if options.json_rules:
       with open(options.json_rules, 'r') as json_file:
         json_rules = json.load(json_file)
