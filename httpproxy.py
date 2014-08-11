@@ -310,7 +310,7 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
 
     for rule in rules:
       (predicate, predicate_args, action), action_args = rule[:3], rule[3:]
-      if predicate == 'requestMatches':
+      if predicate == 'urlMatches':
         if action == 'sendStatus':
           for url in predicate_args:
             self.error_paths.add((re.compile(url), action_args[0]))

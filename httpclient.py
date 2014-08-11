@@ -493,7 +493,7 @@ class ControllableHttpArchiveFetch(object):
     callback_paths = set()
     for rule in rules:
       (predicate, predicate_args, action), action_args = rule[:3], rule[3:]
-      if predicate == "requestMatches":
+      if predicate == "urlMatches":
         if action == "replaceCallback":
           for url in predicate_args:
             callback_paths.add(re.compile(url))
