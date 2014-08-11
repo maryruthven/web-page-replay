@@ -491,12 +491,12 @@ class ControllableHttpArchiveFetch(object):
 
   def parse_rules(self, rules):
     callback_paths = set()
-    for predicate, predicate_args, action in rules:
-      if predicate == "isFetchPath":
+    for rule in rules:
+      (predicate, predicate_args, action), action_args = rule[:3], rule[3:]
+      if predicate == "requestMatches":
         if action == "replaceCallback":
-          host, paths = predicate_args
-          for path in paths:
-            callback_paths.add(re.compile('%s%s' % (host, path)))
+          for url in predicate_args:
+            callback_paths.add(re.compile(url))
 
     self.replay_fetch.callback_paths = callback_paths
     self.record_fetch.callback_paths = callback_paths

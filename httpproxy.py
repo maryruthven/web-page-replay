@@ -111,10 +111,11 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
       if re.match(r'%s' % path, parsed.path):
         more_undesirable_keys = [undesirable_key]
 
-    for path in self.server.error_paths:
-      if re.match(r'%s' % path, '%s%s' % (host, full_path)):
-        logging.debug('Send 204 for %s%s', host, parsed.path)
-        self.send_error(204)
+    for path, status in self.server.error_paths:
+      if path.match('%s%s' % (host, full_path)):
+        logging.debug('Send %d for %s%s', status, host, full_path)
+        logging.debug(path.pattern)
+        self.send_error(status)
         return None
 
     return httparchive.ArchivedHttpRequest(
@@ -306,21 +307,21 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
     self.undesirable_headers = {}
     self.error_paths = set()
     self.paths_to_generalize = set()
-    for predicate, predicate_args, action in rules:
-      if predicate == 'isRequestPath':
-        if action == 'send204':
-          host, paths = predicate_args
-          for path in paths:
-            self.error_paths.add('%s%s' % (host, path))
-        elif action == 'generalizePath':
-          host, paths = predicate_args
-          for path in paths:
-            if re.search('\([^\)]?\(', path):
-              raise ValueError('Invalid path for matching %s', path)
-            self.paths_to_generalize.add(re.compile('%s%s' % (host,path)))
+
+    for rule in rules:
+      (predicate, predicate_args, action), action_args = rule[:3], rule[3:]
+      if predicate == 'requestMatches':
+        if action == 'sendStatus':
+          for url in predicate_args:
+            self.error_paths.add((re.compile(url), action_args[0]))
+        elif action == 'removeGroupsFromURL':
+          for url in predicate_args:
+            if re.search('\([^\)]?\(', url):
+              raise ValueError('Invalid path for matching %s', url)
+            self.paths_to_generalize.add(re.compile(url))
         elif action == 'removeHeader':
-          path, header = predicate_args
-          self.undesirable_headers[path] = header
+          for url in predicate_args:
+            self.undesirable_headers[url] = action_args[0]
 
   def cleanup(self):
     try:
