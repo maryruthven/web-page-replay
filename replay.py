@@ -139,6 +139,8 @@ def AddWebProxy(server_manager, options, host, real_dns_lookup, http_archive,
         assert isinstance(rule, list)
         if rule[0] == '_comment':
           comments.append(i)
+        else:
+          assert (len(rule) == 4) or (len(rule) == 3)
       [json_rules.pop(i) for i in comments[::-1]]
 
     archive_fetch = httpclient.ControllableHttpArchiveFetch(
@@ -155,8 +157,7 @@ def AddWebProxy(server_manager, options, host, real_dns_lookup, http_archive,
         rules=json_rules, use_delays=options.use_server_delay,
         **options.shaping_http)
     if options.ssl:
-      if options.should_generate_certs and not options.dont_generate_certs:
-        logging.error('GeneratingCerts')
+      if options.should_generate_certs:
         server_manager.Append(
             httpproxy.HttpsProxyServer, archive_fetch, custom_handlers,
             options.https_root_ca_cert_path, host=host,
@@ -556,12 +557,8 @@ def GetOptionParser():
   harness_group.add_option('--json_rules', default='json_rules.txt',
       action='store',
       help='Path of file containing json rules to modify urls.')
-  harness_group.add_option('--dont_generate_certs', default=False,
+  harness_group.add_option('--should_generate_certs', default=False,
       action='store_true',
-      help='Use OpenSSL to generate certificate files for requested hosts.')
-  harness_group.add_option('--generate_certs', default=False,
-      action='store_true',
-      dest='should_generate_certs',
       help='Use OpenSSL to generate certificate files for requested hosts.')
   harness_group.add_option('--no-admin-check', default=True,
       action='store_false',

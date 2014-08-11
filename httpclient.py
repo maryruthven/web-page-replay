@@ -446,7 +446,7 @@ def mutate_response(request, response, callback_paths):
       logging.info('doing callback replacement')
       logging.info(request.full_path)
 
-      newkey = request.full_path.rsplit('callback=_xdc_._', 1)[1]
+      newkey = request.full_path.rsplit('callback=_xdc_\._', 1)[1]
       resp_text = response.get_response_as_text()
       oldkey = re.search('_xdc_._(.{9})', resp_text).group(1)
       logging.info("oldkey = %s", oldkey)
@@ -495,7 +495,9 @@ class ControllableHttpArchiveFetch(object):
       (predicate, predicate_args, action), action_args = rule[:3], rule[3:]
       if predicate == "urlMatches":
         if action == "replaceCallback":
+          assert isinstance(predicate_args, list)
           for url in predicate_args:
+            assert isinstance(url, unicode)
             callback_paths.add(re.compile(url))
 
     self.replay_fetch.callback_paths = callback_paths

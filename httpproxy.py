@@ -311,16 +311,20 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
     for rule in rules:
       (predicate, predicate_args, action), action_args = rule[:3], rule[3:]
       if predicate == 'urlMatches':
+        assert isinstance(predicate_args, list)
         if action == 'sendStatus':
           for url in predicate_args:
+            assert isinstance(url, unicode)
             self.error_paths.add((re.compile(url), action_args[0]))
         elif action == 'removeGroupsFromURL':
           for url in predicate_args:
+            assert isinstance(url, unicode)
             if re.search('\([^\)]?\(', url):
               raise ValueError('Invalid path for matching %s', url)
             self.paths_to_generalize.add(re.compile(url))
         elif action == 'removeHeader':
           for url in predicate_args:
+            assert isinstance(url, unicode)
             self.undesirable_headers[url] = action_args[0]
 
   def cleanup(self):
