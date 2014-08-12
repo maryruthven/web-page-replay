@@ -255,6 +255,83 @@ class RealHttpFetch(object):
       all_headers.append((name, value))
     return all_headers
 
+  #def __call__(self, request):
+  #  """Fetch an HTTP request.
+
+  #  Args:
+  #    request: an ArchivedHttpRequest
+  #  Returns:
+  #    an ArchivedHttpResponse
+  #  """
+  #  logging.debug('RealHttpFetch: %s %s', request.host, request.full_path)
+  #  if ':' in request.host:
+  #    parts = request.host.split(':')
+  #    truehost = parts[0]
+  #    trueport = int(parts[1])
+  #  else:
+  #    truehost = request.host
+  #    trueport = None
+
+  #  host_ip = self._real_dns_lookup(truehost)
+  #  if not host_ip:
+  #    logging.critical('Unable to find host ip for name: %s', truehost)
+  #    return None
+  #  retries = 3
+  #  while True:
+  #    try:
+  #      if request.is_ssl:
+  #        if trueport:
+  #          connection = DetailedHTTPSConnection(host_ip, trueport)
+  #        else:
+  #          connection = DetailedHTTPSConnection(host_ip)
+  #      else:
+  #        if trueport:
+  #          connection = DetailedHTTPConnection(host_ip, trueport)
+  #        else:
+  #          connection = DetailedHTTPConnection(host_ip)
+  @staticmethod
+  def _get_request_host_port(request):
+    host_parts = request.host.split(':')
+    host = host_parts[0]
+    port = int(host_parts[1]) if len(host_parts) == 2 else None
+    return host, port
+
+  def _get_system_proxy(self, is_ssl):
+    return platformsettings.get_system_proxy(is_ssl)
+
+  def _get_connection(self, request_host, request_port, is_ssl):
+    """Return a detailed connection object for host/port pair.
+
+    If a system proxy is defined (see platformsettings.py), it will be used.
+
+    Args:
+      request_host: a host string (e.g. "www.example.com").
+      request_port: a port integer (e.g. 8080) or None (for the default port).
+      is_ssl: True if HTTPS connection is needed.
+    Returns:
+      A DetailedHTTPSConnection or DetailedHTTPConnection instance.
+    """
+    connection_host = request_host
+    connection_port = request_port
+    system_proxy = self._get_system_proxy(is_ssl)
+    if system_proxy:
+      connection_host = system_proxy.host
+      connection_port = system_proxy.port
+
+    # Use an IP address because WPR may override DNS settings.
+    connection_ip = self._real_dns_lookup(connection_host)
+    if not connection_ip:
+      logging.critical('Unable to find host ip for name: %s', connection_host)
+      return None
+
+    if is_ssl:
+      connection = DetailedHTTPSConnection(connection_ip, connection_port)
+      if system_proxy:
+        connection.set_tunnel(self, request_host, request_port)
+    else:
+      connection = DetailedHTTPConnection(connection_ip, connection_port)
+    return connection
+
   def __call__(self, request):
     """Fetch an HTTP request.
 
@@ -264,31 +341,12 @@ class RealHttpFetch(object):
       an ArchivedHttpResponse
     """
     logging.debug('RealHttpFetch: %s %s', request.host, request.full_path)
-    if ':' in request.host:
-      parts = request.host.split(':')
-      truehost = parts[0]
-      trueport = int(parts[1])
-    else:
-      truehost = request.host
-      trueport = None
-
-    host_ip = self._real_dns_lookup(truehost)
-    if not host_ip:
-      logging.critical('Unable to find host ip for name: %s', truehost)
-      return None
+    request_host, request_port = self._get_request_host_port(request)
     retries = 3
     while True:
       try:
-        if request.is_ssl:
-          if trueport:
-            connection = DetailedHTTPSConnection(host_ip, trueport)
-          else:
-            connection = DetailedHTTPSConnection(host_ip)
-        else:
-          if trueport:
-            connection = DetailedHTTPConnection(host_ip, trueport)
-          else:
-            connection = DetailedHTTPConnection(host_ip)
+        connection = self._get_connection(
+            request_host, request_port, request.is_ssl)
         connect_start = TIMER()
         connection.connect()
         connect_delay = int((TIMER() - connect_start) * 1000)
@@ -441,6 +499,7 @@ class ReplayHttpArchiveFetch(object):
     return response
 
 def mutate_response(request, response, callback_paths):
+  """Modifies the response's callback id to match the request's callback id."""
   for callback_path_re in callback_paths:
     if callback_path_re.match('%s%s' % (request.host, request.full_path)):
       logging.info('doing callback replacement')
@@ -489,15 +548,22 @@ class ControllableHttpArchiveFetch(object):
       self.SetReplayMode()
     self.parse_rules(rules)
 
+  def check_instance(obj, description, base_string, rulePart)
+    if not isinstance(obj, base_string):
+      raise ValueError('Invalid %s type for %s should be %s instead'
+                       % (description, rule_part, base_string))
+
   def parse_rules(self, rules):
     callback_paths = set()
     for rule in rules:
-      (predicate, predicate_args, action), action_args = rule[:3], rule[3:]
-      if predicate == "urlMatches":
-        if action == "replaceCallback":
+      predicate, predicate_args, action = rule[:3]
+      if predicate == 'urlMatches':
+        self.check_instance(predicate_args, 'predicate_arg', list, 'urlMatches')
+        if action == 'replaceCallback':
           assert isinstance(predicate_args, list)
           for url in predicate_args:
-            assert isinstance(url, unicode)
+            self.check_instance(url, 'predicate_arg', unicode,
+                                'replaceCallback')
             callback_paths.add(re.compile(url))
 
     self.replay_fetch.callback_paths = callback_paths

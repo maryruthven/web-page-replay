@@ -464,7 +464,7 @@ class ArchivedHttpRequest(object):
 
   def __init__(self, command, host, full_path, request_body, headers,
                is_ssl=False, path_for_matching=None,
-               more_undesirable_keys=None):
+               additional_undesirable_keys=None):
     """Initialize an ArchivedHttpRequest.
 
     Args:
@@ -476,7 +476,7 @@ class ArchivedHttpRequest(object):
       headers: {key: value, ...} where key and value are strings.
       is_ssl: True if request is made via SSL.
       path_for_matching: modified request path to use for matching requests.
-      more_undesirable_keys: A dictionary of headers to exclude.
+      additional_undesirable_keys: A list of headers to exclude.
     """
     self.command = command
     self.host = host
@@ -485,7 +485,7 @@ class ArchivedHttpRequest(object):
     self.request_body = request_body
     self.headers = headers
     self.is_ssl = is_ssl
-    self.trimmed_headers = self._TrimHeaders(headers, more_undesirable_keys)
+    self.trimmed_headers = self._TrimHeaders(headers, additional_undesirable_keys)
     self.formatted_request = self._GetFormattedRequest()
     self.path_for_matching = (path_for_matching or full_path)
 
@@ -604,7 +604,7 @@ class ArchivedHttpRequest(object):
       return self.path == urlparse.urlparse(full_path).path
 
   @classmethod
-  def _TrimHeaders(cls, headers, more_undesirable_keys=None):
+  def _TrimHeaders(cls, headers, additional_undesirable_keys=None):
     """Removes headers that are known to cause problems during replay.
 
     These headers are removed for the following reasons:
@@ -641,8 +641,8 @@ class ArchivedHttpRequest(object):
         'connection', 'cookie', 'keep-alive', 'method',
         'referer', 'scheme', 'url', 'version', 'user-agent', 'proxy-connection',
         'x-chrome-variations']
-    if more_undesirable_keys:
-      undesirable_keys.extend(more_undesirable_keys)
+    if additional_undesirable_keys:
+      undesirable_keys.extend(additional_undesirable_keys)
 
     return sorted([(k, v) for k, v in headers.items()
                    if k.lower() not in undesirable_keys])

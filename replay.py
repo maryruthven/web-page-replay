@@ -136,11 +136,12 @@ def AddWebProxy(server_manager, options, host, real_dns_lookup, http_archive,
         json_rules = json.load(json_file)
       comments = []
       for i, rule in enumerate(json_rules):
-        assert isinstance(rule, list)
-        if rule[0] == '_comment':
+        if not isinstance(rule, list):
+          raise ValueError('Rule number %d should be a list' % i)
+        if (rule[0] == '_comment') | (rule[0][0] == '#'):
           comments.append(i)
         else:
-          assert (len(rule) == 4) or (len(rule) == 3)
+          assert 3 <= len(rule) <= 4
       [json_rules.pop(i) for i in comments[::-1]]
 
     archive_fetch = httpclient.ControllableHttpArchiveFetch(
@@ -554,7 +555,7 @@ def GetOptionParser():
       action='store_false',
       dest='ssl',
       help='Do not setup an SSL proxy.')
-  harness_group.add_option('--json_rules', default='json_rules.txt',
+  harness_group.add_option('--json_rules', default='rules.json',
       action='store',
       help='Path of file containing json rules to modify urls.')
   harness_group.add_option('--should_generate_certs', default=False,

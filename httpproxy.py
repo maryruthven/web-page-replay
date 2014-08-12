@@ -92,7 +92,10 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     full_path = '%s%s%s%s' % (parsed.path, params, query, fragment)
     path_for_matching = full_path
 
-    for path in self.server.paths_to_generalize:
+    # remove all designated groups from the matched URL.
+    # e.g if the pattern is "(.*\.)?foo.com/bar.*(qux=1&).*"
+    # then "abc.foo.com/bart?qux=1&z" --> "foo.com/bart?z"
+    for path in self.server.paths_to_edit:
       groups =  path.match('%s%s' % (host, path_for_matching))
       if groups:
         start_include = 0
@@ -102,14 +105,14 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
           new_path += path_for_matching[start_include:start_group]
           start_include = end_group
         path_for_matching = new_path + path_for_matching[start_include::]
-        logging.info('doing replacement in %s mode: %s -> %s',
+        logging.info('While %sing replaced %s with %s',
                      ('record' if self.server.http_archive_fetch.is_record_mode
                       else 'replay'), full_path, path_for_matching)
 
-    more_undesirable_keys = None
+    additional_undesirable_keys = []
     for path, undesirable_key in self.server.undesirable_headers.items():
       if re.match(r'%s' % path, parsed.path):
-        more_undesirable_keys = [undesirable_key]
+        additional_undesirable_keys.append(undesirable_key)
 
     for path, status in self.server.error_paths:
       if path.match('%s%s' % (host, full_path)):
@@ -126,7 +129,7 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.get_header_dict(),
         self.server.is_ssl,
         path_for_matching,
-        more_undesirable_keys)
+        additional_undesirable_keys)
 
   def send_archived_http_response(self, response):
     try:
@@ -302,29 +305,38 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
         '%s server started on %s:%d' % (self.protocol, self.server_address[0],
                                         self.server_address[1]))
 
+  def check_instance(obj, description, base_string, rulePart)
+    if not isinstance(obj, base_string):
+      raise ValueError('Invalid %s type for %s should be %s instead'
+                       % (description, rule_part, base_string))
+
   def parse_rules(self, rules):
     self.client_204_paths = set()
     self.undesirable_headers = {}
     self.error_paths = set()
-    self.paths_to_generalize = set()
+    self.paths_to_edit = set()
 
     for rule in rules:
       (predicate, predicate_args, action), action_args = rule[:3], rule[3:]
       if predicate == 'urlMatches':
-        assert isinstance(predicate_args, list)
+        self.check_instance(predicate_args, 'predicate_arg', list, 'urlMatches')
         if action == 'sendStatus':
           for url in predicate_args:
-            assert isinstance(url, unicode)
+            self.check_instance(url, 'predicate_arg', unicode, 'sendStatus')
+            self.check_instance(action_args[0], 'action_arg', int, 'sendStatus')
             self.error_paths.add((re.compile(url), action_args[0]))
         elif action == 'removeGroupsFromURL':
           for url in predicate_args:
-            assert isinstance(url, unicode)
-            if re.search('\([^\)]?\(', url):
+            self.check_instance(url, 'predicate_arg', unicode,
+                                'removeGroupsFromURL')
+            if re.search('\([^\( (\\\()]?\(', url):
               raise ValueError('Invalid path for matching %s', url)
-            self.paths_to_generalize.add(re.compile(url))
+            self.paths_to_edit.add(re.compile(url))
         elif action == 'removeHeader':
           for url in predicate_args:
-            assert isinstance(url, unicode)
+            self.check_instance(url, 'predicate_arg', unicode, 'removeHeader')
+            self.check_instance(action_args[0], 'action_arg', unicode,
+                                'removeHeader')
             self.undesirable_headers[url] = action_args[0]
 
   def cleanup(self):
