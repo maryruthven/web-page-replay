@@ -255,40 +255,6 @@ class RealHttpFetch(object):
       all_headers.append((name, value))
     return all_headers
 
-  #def __call__(self, request):
-  #  """Fetch an HTTP request.
-
-  #  Args:
-  #    request: an ArchivedHttpRequest
-  #  Returns:
-  #    an ArchivedHttpResponse
-  #  """
-  #  logging.debug('RealHttpFetch: %s %s', request.host, request.full_path)
-  #  if ':' in request.host:
-  #    parts = request.host.split(':')
-  #    truehost = parts[0]
-  #    trueport = int(parts[1])
-  #  else:
-  #    truehost = request.host
-  #    trueport = None
-
-  #  host_ip = self._real_dns_lookup(truehost)
-  #  if not host_ip:
-  #    logging.critical('Unable to find host ip for name: %s', truehost)
-  #    return None
-  #  retries = 3
-  #  while True:
-  #    try:
-  #      if request.is_ssl:
-  #        if trueport:
-  #          connection = DetailedHTTPSConnection(host_ip, trueport)
-  #        else:
-  #          connection = DetailedHTTPSConnection(host_ip)
-  #      else:
-  #        if trueport:
-  #          connection = DetailedHTTPConnection(host_ip, trueport)
-  #        else:
-  #          connection = DetailedHTTPConnection(host_ip)
   @staticmethod
   def _get_request_host_port(request):
     host_parts = request.host.split(':')
@@ -548,7 +514,8 @@ class ControllableHttpArchiveFetch(object):
       self.SetReplayMode()
     self.parse_rules(rules)
 
-  def check_instance(obj, description, base_string, rulePart)
+  @staticmethod
+  def check_instance(obj, description, base_string, rulePart):
     if not isinstance(obj, base_string):
       raise ValueError('Invalid %s type for %s should be %s instead'
                        % (description, rule_part, base_string))

@@ -305,7 +305,8 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
         '%s server started on %s:%d' % (self.protocol, self.server_address[0],
                                         self.server_address[1]))
 
-  def check_instance(obj, description, base_string, rulePart)
+  @staticmethod
+  def check_instance(obj, description, base_string, rulePart):
     if not isinstance(obj, base_string):
       raise ValueError('Invalid %s type for %s should be %s instead'
                        % (description, rule_part, base_string))
@@ -329,7 +330,8 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
           for url in predicate_args:
             self.check_instance(url, 'predicate_arg', unicode,
                                 'removeGroupsFromURL')
-            if re.search('\([^\( (\\\()]?\(', url):
+            # TODO(wrightt): handle escaping correctly (e.g "...\\((...")
+            if re.search(r'(^|[^\\])\([^\((\\()]?\(', url):
               raise ValueError('Invalid path for matching %s', url)
             self.paths_to_edit.add(re.compile(url))
         elif action == 'removeHeader':

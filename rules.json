@@ -7,13 +7,13 @@
   "    by parenthesis.                                                        ",
   "        ex: with foo.com/bar=([0-9])  foo.com/bar=8 -> foo.com/bar=        ",
   "supported actions: replaceCallback, removeGroupsFromURL, sendStatus,       ",
-   removeHeader                                                               ",
+  "removeHeader                                                               ",
   "action_args: Optional.                                                     ",
   "    sendStatus - the response status code to send for the url.             ",
   "    removeHeaders - the header to exclued for that url.                    "
   ],
  ["_comment", "Example rules for google search, bing search, and google search",
-               on an idevice."],
+              "on an idevice."],
 
  ["_comment", "Rules for google search"],
  ["urlMatches",
@@ -60,7 +60,7 @@
    ".*\\.google\\.com/log204.*"],
   "sendStatus", 204],
 
- ["# TODO: needs hostname"]
+ ["# TODO: needs hostname"],
  ["urlMatches",
   [".*/maps/preview/log204"],
   "removeHeader", "cache-control"],
