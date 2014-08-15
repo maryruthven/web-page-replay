@@ -468,7 +468,6 @@ GROUP_RE = re.compile(r'\(.*\)')
 
 def modify_response(request, response, callback_paths):
   """Modifies the response's callback id to match the request's callback id."""
-  logging.info('loooooooooooook          ' +request.full_path)
   for callback_path_re, response_re in callback_paths:
     url = '%s%s' % (request.host, request.full_path)
     if callback_path_re.match(url):
