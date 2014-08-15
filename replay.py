@@ -132,6 +132,7 @@ def AddWebProxy(server_manager, options, host, real_dns_lookup, http_archive,
     custom_handlers.add_server_manager_handler(server_manager)
     json_rules = []
     if options.json_rules:
+      # TODO(wrightt): re: support comma-separated file names & dirs
       with open(options.json_rules, 'r') as json_file:
         json_rules = json.load(json_file)
       comments = []
