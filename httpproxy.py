@@ -90,29 +90,29 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     query = '?%s' % parsed.query if parsed.query else ''
     fragment = '#%s' % parsed.fragment if parsed.fragment else ''
     full_path = '%s%s%s%s' % (parsed.path, params, query, fragment)
-    path_for_matching = full_path
+    repr_path = full_path
 
     # remove all designated groups from the matched URL.
     # e.g if the pattern is "(.*\.)?foo.com/bar.*(qux=1&).*"
     # then "abc.foo.com/bart?qux=1&z" --> "foo.com/bart?z"
     for path in self.server.paths_to_edit:
-      groups =  path.match('%s%s' % (host, path_for_matching))
+      groups =  path.match('%s%s' % (host, repr_path))
       if groups:
         start_include = 0
         new_path = ''
         for i in xrange(groups.lastindex):
           start_group, end_group = groups.span(i+1)
-          new_path += path_for_matching[start_include:start_group]
+          new_path += repr_path[start_include:start_group]
           start_include = end_group
-        path_for_matching = new_path + path_for_matching[start_include::]
+        repr_path = new_path + repr_path[start_include::]
         logging.info('While %sing replaced %s with %s',
                      ('record' if self.server.http_archive_fetch.is_record_mode
-                      else 'replay'), full_path, path_for_matching)
+                      else 'replay'), full_path, repr_path)
 
-    additional_undesirable_keys = []
+    exclude_headers = []
     for path, undesirable_key in self.server.undesirable_headers.items():
       if re.match(r'%s' % path, parsed.path):
-        additional_undesirable_keys.append(undesirable_key)
+        exclude_headers.append(undesirable_key)
 
     for path, status in self.server.error_paths:
       if path.match('%s%s' % (host, full_path)):
@@ -128,8 +128,8 @@ class HttpArchiveHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.read_request_body(),
         self.get_header_dict(),
         self.server.is_ssl,
-        path_for_matching,
-        additional_undesirable_keys)
+        repr_path,
+        exclude_headers)
 
   def send_archived_http_response(self, response):
     try:

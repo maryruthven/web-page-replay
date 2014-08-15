@@ -463,8 +463,8 @@ class ArchivedHttpRequest(object):
       'if-modified-since', 'if-unmodified-since']
 
   def __init__(self, command, host, full_path, request_body, headers,
-               is_ssl=False, path_for_matching=None,
-               additional_undesirable_keys=None):
+               is_ssl=False, repr_path=None,
+               exclude_headers=None):
     """Initialize an ArchivedHttpRequest.
 
     Args:
@@ -475,8 +475,8 @@ class ArchivedHttpRequest(object):
       request_body: a request body string for a POST or None.
       headers: {key: value, ...} where key and value are strings.
       is_ssl: True if request is made via SSL.
-      path_for_matching: modified request path to use for matching requests.
-      additional_undesirable_keys: A list of headers to exclude.
+      repr_path: modified request path to use for matching requests.
+      exclude_headers: A list of headers to exclude.
     """
     self.command = command
     self.host = host
@@ -485,18 +485,18 @@ class ArchivedHttpRequest(object):
     self.request_body = request_body
     self.headers = headers
     self.is_ssl = is_ssl
-    self.trimmed_headers = self._TrimHeaders(headers, additional_undesirable_keys)
+    self.trimmed_headers = self._TrimHeaders(headers, exclude_headers)
     self.formatted_request = self._GetFormattedRequest()
-    self.path_for_matching = (path_for_matching or full_path)
+    self.repr_path = (repr_path or full_path)
 
   def __str__(self):
     scheme = 'https' if self.is_ssl else 'http'
     return '%s %s://%s%s %s' % (
-        self.command, scheme, self.host, self.path_for_matching,
+        self.command, scheme, self.host, self.repr_path,
         self.trimmed_headers)
 
   def __repr__(self):
-    return repr((self.command, self.host, self.path_for_matching,
+    return repr((self.command, self.host, self.repr_path,
                  self.request_body, self.trimmed_headers, self.is_ssl))
 
   def __hash__(self):
@@ -604,13 +604,14 @@ class ArchivedHttpRequest(object):
       return self.path == urlparse.urlparse(full_path).path
 
   @classmethod
-  def _TrimHeaders(cls, headers, additional_undesirable_keys=None):
+  def _TrimHeaders(cls, headers, exclude_headers=None):
     """Removes headers that are known to cause problems during replay.
 
     These headers are removed for the following reasons:
     - accept: Causes problems with www.bing.com. During record, CSS is fetched
               with *. During replay, it's text/css.
     - accept-charset, accept-language, referer: vary between clients.
+    - cache-control:  sometimes sent from Chrome with 'max-age=0' as value.
     - connection, method, scheme, url, version: Cause problems with spdy.
     - cookie: Extremely sensitive to request/response order.
     - keep-alive: Not supported by Web Page Replay.
@@ -624,6 +625,7 @@ class ArchivedHttpRequest(object):
 
     Args:
       headers: {header_key: header_value, ...}
+      exclude_headers: [header_name, ...]
 
     Returns:
       [(header_key, header_value), ...]  # (with undesirable headers removed)
@@ -641,8 +643,8 @@ class ArchivedHttpRequest(object):
         'connection', 'cookie', 'keep-alive', 'method',
         'referer', 'scheme', 'url', 'version', 'user-agent', 'proxy-connection',
         'x-chrome-variations']
-    if additional_undesirable_keys:
-      undesirable_keys.extend(additional_undesirable_keys)
+    if exclude_headers:
+      undesirable_keys.extend(exclude_headers)
 
     return sorted([(k, v) for k, v in headers.items()
                    if k.lower() not in undesirable_keys])
