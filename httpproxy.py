@@ -308,8 +308,8 @@ class HttpProxyServer(SocketServer.ThreadingMixIn,
   @staticmethod
   def check_instance(obj, description, base_string, rulePart):
     if not isinstance(obj, base_string):
-      raise ValueError('Invalid %s type for %s should be %s instead'
-                       % (description, rule_part, base_string))
+      logging.warning('Invalid %s type for %s should be %s instead'
+                      % (description, rule_part, base_string))
 
   def parse_rules(self, rules):
     self.client_204_paths = set()

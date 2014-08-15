@@ -382,7 +382,7 @@ class RecordHttpArchiveFetch(object):
     if request in self.http_archive:
       logging.debug('Repeated request found: %s', request)
       response = self.http_archive[request]
-      mutate_response(request, response, self.callback_paths)
+      modify_response(request, response, self.callback_paths)
     else:
       response = self.real_http_fetch(request)
       if response is None:
@@ -433,7 +433,7 @@ class ReplayHttpArchiveFetch(object):
       return self.real_http_fetch(request)
 
     response = self.http_archive.get(request)
-    mutate_response(request, response, self.callback_paths)
+    modify_response(request, response, self.callback_paths)
 
     if self.use_closest_match and not response:
       closest_request = self.http_archive.find_closest_request(
@@ -464,20 +464,22 @@ class ReplayHttpArchiveFetch(object):
         response = _ScrambleImages(response)
     return response
 
-def mutate_response(request, response, callback_paths):
+def modify_response(request, response, callback_paths):
   """Modifies the response's callback id to match the request's callback id."""
-  for callback_path_re in callback_paths:
-    if callback_path_re.match('%s%s' % (request.host, request.full_path)):
+  logging.info('loooooooooooook          ' +request.full_path)
+  for callback_path_re, response_re in callback_paths:
+    url = '%s%s' % (request.host, request.full_path)
+    if callback_path_re.match(url):
       logging.info('doing callback replacement')
       logging.info(request.full_path)
 
-      newkey = request.full_path.rsplit('callback=_xdc_\._', 1)[1]
-      resp_text = response.get_response_as_text()
-      oldkey = re.search('_xdc_._(.{9})', resp_text).group(1)
-      logging.info("oldkey = %s", oldkey)
-      new_resp_text = resp_text.replace(oldkey, newkey)
-      logging.info('new_resp_text: %s', new_resp_text)
-      response.set_response_from_text(new_resp_text)
+      new_key = callback_path_re.search(url).group(1)
+      text = response.get_response_as_text()
+      old_key = response_re.search(text).group(1)
+      logging.info("old_key = %s", old_key)
+      new_text = text.replace(old_key, new_key)
+      logging.info('new_text: %s', new_text)
+      response.set_response_from_text(new_text)
 
 class ControllableHttpArchiveFetch(object):
   """Controllable fetch function that can swap between record and replay."""
@@ -517,13 +519,13 @@ class ControllableHttpArchiveFetch(object):
   @staticmethod
   def check_instance(obj, description, base_string, rulePart):
     if not isinstance(obj, base_string):
-      raise ValueError('Invalid %s type for %s should be %s instead'
-                       % (description, rule_part, base_string))
+      logging.warning('Invalid %s type for %s should be %s instead'
+                      % (description, rule_part, base_string))
 
   def parse_rules(self, rules):
     callback_paths = set()
     for rule in rules:
-      predicate, predicate_args, action = rule[:3]
+      (predicate, predicate_args, action), action_args = rule[:3], rule[3:]
       if predicate == 'urlMatches':
         self.check_instance(predicate_args, 'predicate_arg', list, 'urlMatches')
         if action == 'replaceCallback':
@@ -531,7 +533,7 @@ class ControllableHttpArchiveFetch(object):
           for url in predicate_args:
             self.check_instance(url, 'predicate_arg', unicode,
                                 'replaceCallback')
-            callback_paths.add(re.compile(url))
+            callback_paths.add((re.compile(url), re.compile(action_args[0])))
 
     self.replay_fetch.callback_paths = callback_paths
     self.record_fetch.callback_paths = callback_paths

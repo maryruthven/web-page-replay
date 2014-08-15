@@ -141,8 +141,9 @@ def AddWebProxy(server_manager, options, host, real_dns_lookup, http_archive,
         if (rule[0] == '_comment') | (rule[0][0] == '#'):
           comments.append(i)
         else:
-          assert 3 <= len(rule) <= 4
-      [json_rules.pop(i) for i in comments[::-1]]
+          assert len(rule) in (3,4)
+      for i in comments[::-1]:
+        json_rules.pop(i)
 
     archive_fetch = httpclient.ControllableHttpArchiveFetch(
         http_archive, real_dns_lookup,
