@@ -115,6 +115,35 @@ $ google-chrome --host-resolver-rules="MAP * 127.0.0.1:80,EXCLUDE localhost"
 ```
 
 # HTTPS/SSL support
+
+## Dynamic Certificate Generation
+
+Web Page Replay can dynamically generate certificates from a root CA certificate
+supplied at start. If the device has the root CA public key installed as a trusted
+CA then the browser will trust replay and behave normally.
+
+With dynamic certificate generation when sslproxy gets a connection it queries the
+appropriate host and gets the correct SNI from the returned certificate. It then
+creates a certificate with that server name and does the handshake with the client
+using that generated certificate.
+
+Dynamic certificate generation requires that you supply replay with a root
+CA certificate. Use certutils.py to generate the dummy CA and pass the filename to
+replay on creation.
+
+```
+$ ./replay.py --should-generate-certs --https_ca_cert_path='rootCA.pem'
+```
+
+The public key of the root certificate will need to be installed on the device being
+used in the test. Use adb_install_cert to install the certificate on Android devices.
+
+```
+$ ./adb_install_cert.py 'rootCA.crt'
+```
+
+## Ignore Certificate Errors
+
 By default, Web Page Replay, creates a self-signed certificate to serve
 SSL traffic. In order for it to work, browsers need to be configured to
 ignore certificate errors. Be aware that doing so opens a giant security
@@ -128,6 +157,8 @@ Firefox has [a configuration file for
 exceptions](https://developer.mozilla.org/En/Cert_override.txt). That requires listing
 each host that gets used. If you have a better solution, please add it
 to the comments below. IE and Safari options are also needed.
+
+## Remove SSL Support
 
 To turn off SSL support, run replay.py with "--no-ssl".
 
