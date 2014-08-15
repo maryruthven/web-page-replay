@@ -164,8 +164,8 @@ $ ./adb_install_cert.py 'rootCA.crt'
 ```
 
 One way to install the public key on iOS is to serve the certificate then visit that
-page with a ".crt" extension. A dialog to install the certificate will pop up and
-then click install.
+page with a ".crt" extension. A dialog to install the certificate will pop up then
+click install.
 
 # Troubleshooting
 
