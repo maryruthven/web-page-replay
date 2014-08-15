@@ -115,32 +115,7 @@ $ google-chrome --host-resolver-rules="MAP * 127.0.0.1:80,EXCLUDE localhost"
 ```
 
 # HTTPS/SSL support
-
-## Dynamic Certificate Generation
-
-Web Page Replay can dynamically generate certificates from a root CA certificate.
-If the device has the root CA public key installed as a trusted CA then the browser
-will trust those certificates and believe replay is the correct host. This allows
-the browser to behave normally.
-
-When sslproxy gets a connection it queries the appropriate host and gets the correct
-SNI from the returned certificate. It then creates a certificate with that server
-name and communicates with the client using that generated certificate.
-
-Dynamic certificate generation requires that you supply replay with a root
-CA certificate. Use certutils.py to generate the dummy CA and pass the filename to
-replay on creation.
-
-```
-$ ./replay.py --should-generate-certs --https_ca_cert_path='rootCA.pem'
-```
-
-The public key of the root certificate will need to be installed on the device being
-used in the test. Use adb_install_cert to install the certificate on Android devices.
-
-```
-$ ./adb_install_cert.py 'rootCA.crt'
-```
+HTTPS is enabled by default. To disable HTTPS run replay.py with "--no-ssl".
 
 ## Ignore Certificate Errors
 
@@ -158,9 +133,39 @@ exceptions](https://developer.mozilla.org/En/Cert_override.txt). That requires l
 each host that gets used. If you have a better solution, please add it
 to the comments below. IE and Safari options are also needed.
 
-## Remove SSL Support
+## Dynamic Certificate Generation
 
-To turn off SSL support, run replay.py with "--no-ssl".
+Web Page Replay can dynamically generate certificates from a root CA certificate.
+If the device has the root CA public key installed as a trusted CA then the browser
+will trust those certificates and believe replay is the correct host. This allows
+the browser to behave normally unlike just ignoring the certificate errors.
+
+When sslproxy gets a connection it queries the appropriate host and gets the correct
+SNI from the returned certificate. It then creates a certificate with that server
+name and communicates with the client using that generated certificate. The
+certificate is saved in the archive and can be looked up later if there are any
+future requests with the same host.
+
+![Alt sslproxy](SslProxyDiagram.png "sslproxy")
+
+Dynamic certificate generation requires that you supply replay with a root
+CA certificate. Use certutils.py to generate the dummy CA and pass the filename to
+replay on creation.
+
+```
+$ ./replay.py --should-generate-certs --https_ca_cert_path='rootCA.pem'
+```
+
+The public key of the root certificate will need to be installed on the device being
+used in the test. Use adb_install_cert to install the certificate on Android devices.
+
+```
+$ ./adb_install_cert.py 'rootCA.crt'
+```
+
+One way to install the public key on iOS is to serve the certificate then visit that
+page with a ".crt" extension. A dialog to install the certificate will pop up and
+then click install.
 
 # Troubleshooting
 
