@@ -463,8 +463,7 @@ class ArchivedHttpRequest(object):
       'if-modified-since', 'if-unmodified-since']
 
   def __init__(self, command, host, full_path, request_body, headers,
-               is_ssl=False, repr_path=None,
-               exclude_headers=None):
+               is_ssl=False, repr_path=None, exclude_headers=None):
     """Initialize an ArchivedHttpRequest.
 
     Args:
