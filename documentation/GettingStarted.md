@@ -118,14 +118,14 @@ $ google-chrome --host-resolver-rules="MAP * 127.0.0.1:80,EXCLUDE localhost"
 
 ## Dynamic Certificate Generation
 
-Web Page Replay can dynamically generate certificates from a root CA certificate
-supplied at start. If the device has the root CA public key installed as a trusted
-CA then the browser will trust replay and behave normally.
+Web Page Replay can dynamically generate certificates from a root CA certificate.
+If the device has the root CA public key installed as a trusted CA then the browser
+will trust those certificates and believe replay is the correct host. This allows
+the browser to behave normally.
 
-With dynamic certificate generation when sslproxy gets a connection it queries the
-appropriate host and gets the correct SNI from the returned certificate. It then
-creates a certificate with that server name and does the handshake with the client
-using that generated certificate.
+When sslproxy gets a connection it queries the appropriate host and gets the correct
+SNI from the returned certificate. It then creates a certificate with that server
+name and communicates with the client using that generated certificate.
 
 Dynamic certificate generation requires that you supply replay with a root
 CA certificate. Use certutils.py to generate the dummy CA and pass the filename to
