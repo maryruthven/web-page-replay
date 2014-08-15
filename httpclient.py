@@ -464,6 +464,8 @@ class ReplayHttpArchiveFetch(object):
         response = _ScrambleImages(response)
     return response
 
+GROUP_RE = re.compile(r'\(.*\)')
+
 def modify_response(request, response, callback_paths):
   """Modifies the response's callback id to match the request's callback id."""
   logging.info('loooooooooooook          ' +request.full_path)
@@ -475,9 +477,12 @@ def modify_response(request, response, callback_paths):
 
       new_key = callback_path_re.search(url).group(1)
       text = response.get_response_as_text()
-      old_key = response_re.search(text).group(1)
+      # create an old_key that replaces the group in the regex with the desired
+      # text
+      old_key = GROUP_RE.sub(response_re.search(text).group(1),
+                             response_re.pattern)
       logging.info("old_key = %s", old_key)
-      new_text = text.replace(old_key, new_key)
+      new_text = response_re.sub(old_key, text)
       logging.info('new_text: %s', new_text)
       response.set_response_from_text(new_text)
 
@@ -528,11 +533,11 @@ class ControllableHttpArchiveFetch(object):
       (predicate, predicate_args, action), action_args = rule[:3], rule[3:]
       if predicate == 'urlMatches':
         self.check_instance(predicate_args, 'predicate_arg', list, 'urlMatches')
-        if action == 'replaceCallback':
+        if action == 'modifyResponse':
           assert isinstance(predicate_args, list)
           for url in predicate_args:
             self.check_instance(url, 'predicate_arg', unicode,
-                                'replaceCallback')
+                                'modifyResponse')
             callback_paths.add((re.compile(url), re.compile(action_args[0])))
 
     self.replay_fetch.callback_paths = callback_paths
